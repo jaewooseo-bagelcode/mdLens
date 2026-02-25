@@ -1,0 +1,6 @@
+.build/
+.scs/
+.claude/
+mdLens.app/
+MarkdownViewer.app/
+*.zip

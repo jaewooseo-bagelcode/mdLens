@@ -1,11 +1,7 @@
 import SwiftUI
+import MarkdownCore
 
-enum AppThemeMode: String, CaseIterable {
-    case auto = "Auto"
-    case light = "Light"
-    case dark = "Dark"
-    case sepia = "Sepia"
-
+extension AppThemeMode {
     var colorScheme: ColorScheme? {
         switch self {
         case .auto: return nil

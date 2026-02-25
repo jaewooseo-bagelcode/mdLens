@@ -1,5 +1,6 @@
 import SwiftUI
 import WebKit
+import MarkdownCore
 
 struct DocumentView: View {
     @Environment(AppState.self) private var appState

@@ -1,10 +1,19 @@
 import Foundation
 
-enum EmojiMap {
-    static func convert(_ text: String) -> String {
+public enum EmojiMap {
+    private static let regex = try! NSRegularExpression(pattern: ":([a-z0-9_+\\-]+):")
+
+    public static func convert(_ text: String) -> String {
+        guard text.contains(":") else { return text }
+        let nsText = text as NSString
+        let matches = regex.matches(in: text, range: NSRange(location: 0, length: nsText.length))
+        guard !matches.isEmpty else { return text }
         var result = text
-        for (code, emoji) in map {
-            result = result.replacingOccurrences(of: ":\(code):", with: emoji)
+        for match in matches.reversed() {
+            let code = nsText.substring(with: match.range(at: 1))
+            if let emoji = map[code] {
+                result = (result as NSString).replacingCharacters(in: match.range, with: emoji)
+            }
         }
         return result
     }

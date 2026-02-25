@@ -54,8 +54,8 @@ private struct FootnoteData {
 
 // MARK: - Main Renderer
 
-enum MarkdownRenderer {
-    static func renderHTML(from markdown: String, theme: AppThemeMode = .auto, fontSize: CGFloat = 16) -> String {
+public enum MarkdownRenderer {
+    public static func renderHTML(from markdown: String, theme: AppThemeMode = .auto, fontSize: CGFloat = 16, offline: Bool = false) -> String {
         let features = detectFeatures(in: markdown)
 
         // Pre-process: emoji shortcodes
@@ -79,7 +79,7 @@ enum MarkdownRenderer {
         // Append footnotes section
         bodyHTML += footnotes.renderSection()
 
-        return wrapInFullHTML(body: bodyHTML, theme: theme, fontSize: fontSize, features: features)
+        return wrapInFullHTML(body: bodyHTML, theme: theme, fontSize: fontSize, features: features, offline: offline)
     }
 
     // MARK: - Footnote References
@@ -145,28 +145,37 @@ enum MarkdownRenderer {
 
     // MARK: - HTML Template
 
-    private static func wrapInFullHTML(body: String, theme: AppThemeMode, fontSize: CGFloat, features: FeatureFlags) -> String {
+    private static func wrapInFullHTML(body: String, theme: AppThemeMode, fontSize: CGFloat, features: FeatureFlags, offline: Bool) -> String {
         let css = generateCSS(theme: theme, fontSize: fontSize)
         var head = """
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <style>\(css)</style>
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css" media="(prefers-color-scheme: light), (prefers-color-scheme: no-preference)">
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github-dark.min.css" media="(prefers-color-scheme: dark)">
         """
 
-        if features.needsKaTeX {
+        if !offline {
+            head += """
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css" media="(prefers-color-scheme: light), (prefers-color-scheme: no-preference)">
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github-dark.min.css" media="(prefers-color-scheme: dark)">
+            """
+        }
+
+        if !offline && features.needsKaTeX {
             head += """
             <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.css">
             """
         }
 
-        var scripts = """
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
-        <script>hljs.highlightAll();</script>
-        """
+        var scripts = ""
 
-        if features.needsKaTeX {
+        if !offline {
+            scripts += """
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+            <script>hljs.highlightAll();</script>
+            """
+        }
+
+        if !offline && features.needsKaTeX {
             scripts += """
             <script src="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.js"></script>
             <script src="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/contrib/auto-render.min.js"></script>
@@ -184,7 +193,7 @@ enum MarkdownRenderer {
             """
         }
 
-        if features.needsMermaid {
+        if !offline && features.needsMermaid {
             scripts += """
             <script type="module">
             import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';

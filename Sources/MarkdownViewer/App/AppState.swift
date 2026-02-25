@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import MarkdownCore
 
 enum SidebarTab: String, CaseIterable {
     case files = "Files"

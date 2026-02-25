@@ -8,12 +8,35 @@ let package = Package(
         .package(url: "https://github.com/swiftlang/swift-markdown.git", from: "0.4.0"),
     ],
     targets: [
-        .executableTarget(
-            name: "mdLens",
+        .target(
+            name: "MarkdownCore",
             dependencies: [
                 .product(name: "Markdown", package: "swift-markdown"),
             ],
+            path: "Sources/MarkdownCore",
+            swiftSettings: [
+                .swiftLanguageMode(.v5),
+            ]
+        ),
+        .executableTarget(
+            name: "mdLens",
+            dependencies: [
+                "MarkdownCore",
+                .product(name: "Markdown", package: "swift-markdown"),
+            ],
             path: "Sources/MarkdownViewer",
+            swiftSettings: [
+                .swiftLanguageMode(.v5),
+            ]
+        ),
+        .executableTarget(
+            name: "mdLensQL",
+            dependencies: [
+                "MarkdownCore",
+                .product(name: "Markdown", package: "swift-markdown"),
+            ],
+            path: "Sources/QuickLookExtension",
+            exclude: ["Info.plist", "QuickLook.entitlements"],
             swiftSettings: [
                 .swiftLanguageMode(.v5),
             ]

@@ -1,5 +1,6 @@
 import Foundation
 import Markdown
+import MarkdownCore
 
 enum OutlineParser {
     static func parse(markdown: String) -> [OutlineItem] {

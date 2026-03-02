@@ -10,7 +10,11 @@ private struct FeatureFlags {
 
 private func detectFeatures(in markdown: String) -> FeatureFlags {
     var flags = FeatureFlags()
-    flags.needsKaTeX = markdown.contains("$")
+    // Detect actual math delimiters, not currency like $0.014
+    // Match: $$...$$, $<non-digit>...$, \(...\), \[...\]
+    flags.needsKaTeX = markdown.contains("$$")
+        || markdown.range(of: #"\$[^$\d\s].*?\$"#, options: .regularExpression) != nil
+        || markdown.contains("\\(") || markdown.contains("\\[")
     flags.needsMermaid = markdown.contains("```mermaid")
     return flags
 }
@@ -66,7 +70,7 @@ enum MarkdownRenderer {
         processed = footnotes.extractDefinitions(from: processed)
 
         // Parse & render AST
-        let document = Document(parsing: processed, options: [.parseBlockDirectives, .parseMinimalDoxygen])
+        let document = Document(parsing: processed)
         var renderer = HTMLVisitor()
         var bodyHTML = renderer.visit(document)
 

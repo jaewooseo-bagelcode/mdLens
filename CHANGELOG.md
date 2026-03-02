@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1] - 2026-03-03
+
+### Fixed
+
+- Fix crash when opening markdown files containing blockquotes with tables (swift-markdown `.parseBlockDirectives` bug)
+- Improve KaTeX detection to avoid false positives on currency like `$0.014`
+
 ## [1.0.0] - 2025-02-25
 
 Initial release.

@@ -51,8 +51,7 @@ struct ContentView: View {
         provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { data, _ in
             guard let data = data as? Data,
                   let url = URL(dataRepresentation: data, relativeTo: nil) else { return }
-            let ext = url.pathExtension.lowercased()
-            if ext == "md" || ext == "markdown" || ext == "mdown" || ext == "mkd" {
+            if markdownExtensions.contains(url.pathExtension.lowercased()) {
                 DispatchQueue.main.async {
                     appState.openFile(url: url)
                 }

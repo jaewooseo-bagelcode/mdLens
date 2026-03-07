@@ -27,8 +27,7 @@ struct AppCommands: Commands {
                 if !appState.recentFiles.isEmpty {
                     Divider()
                     Button("Clear Recent") {
-                        appState.recentFiles.removeAll()
-                        UserDefaults.standard.removeObject(forKey: "recentFiles")
+                        appState.clearRecentFiles()
                     }
                 }
             }

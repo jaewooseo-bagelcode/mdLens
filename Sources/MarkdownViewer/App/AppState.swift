@@ -17,6 +17,7 @@ enum SidebarTab: String, CaseIterable {
 
 @Observable
 final class AppState {
+    static let recentFilesKey = "recentFiles"
     var currentDocument: MarkdownDocument?
     var currentFolderURL: URL?
     var fileTree: [FileTreeNode] = []
@@ -41,9 +42,7 @@ final class AppState {
 
     func openFile(url: URL) {
         guard let document = FileService.loadDocument(from: url) else { return }
-        currentDocument = document
-        outline = OutlineParser.parse(markdown: document.content)
-        stats = DocumentStats.compute(from: document.content)
+        applyDocument(document)
         addToRecentFiles(url)
         startWatching(url: url)
     }
@@ -70,9 +69,18 @@ final class AppState {
     private func reloadCurrentDocument() {
         guard let url = currentDocument?.url else { return }
         guard let document = FileService.loadDocument(from: url) else { return }
+        applyDocument(document)
+    }
+
+    private func applyDocument(_ document: MarkdownDocument) {
         currentDocument = document
         outline = OutlineParser.parse(markdown: document.content)
         stats = DocumentStats.compute(from: document.content)
+    }
+
+    func clearRecentFiles() {
+        recentFiles.removeAll()
+        UserDefaults.standard.removeObject(forKey: Self.recentFilesKey)
     }
 
     private func addToRecentFiles(_ url: URL) {
@@ -88,11 +96,11 @@ final class AppState {
         let bookmarks = recentFiles.compactMap { url -> Data? in
             try? url.bookmarkData(options: .withSecurityScope)
         }
-        UserDefaults.standard.set(bookmarks, forKey: "recentFiles")
+        UserDefaults.standard.set(bookmarks, forKey: Self.recentFilesKey)
     }
 
     private func loadRecentFiles() {
-        guard let bookmarks = UserDefaults.standard.array(forKey: "recentFiles") as? [Data] else { return }
+        guard let bookmarks = UserDefaults.standard.array(forKey: Self.recentFilesKey) as? [Data] else { return }
         recentFiles = bookmarks.compactMap { data -> URL? in
             var isStale = false
             guard let url = try? URL(resolvingBookmarkData: data, options: .withSecurityScope, bookmarkDataIsStale: &isStale) else { return nil }

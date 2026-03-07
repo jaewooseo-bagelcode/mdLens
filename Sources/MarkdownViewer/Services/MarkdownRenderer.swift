@@ -19,16 +19,75 @@ private func detectFeatures(in markdown: String) -> FeatureFlags {
     return flags
 }
 
+// MARK: - Front Matter Preprocessor
+
+private struct FrontMatter {
+    var fields: [(key: String, value: String)] = []
+
+    /// Extract YAML-like front matter delimited by `---` at the very start of the document.
+    mutating func extract(from markdown: String) -> String {
+        let lines = markdown.components(separatedBy: .newlines)
+
+        // Opening `---` must be the first line (allow leading whitespace only)
+        guard !lines.isEmpty,
+              lines[0].trimmingCharacters(in: CharacterSet.whitespaces) == "---" else {
+            return markdown
+        }
+
+        // Find closing `---` within first 30 lines (reasonable front matter limit)
+        let searchEnd = min(lines.count, 30)
+        var closingDash: Int?
+        for i in 1..<searchEnd {
+            if lines[i].trimmingCharacters(in: CharacterSet.whitespaces) == "---" {
+                closingDash = i
+                break
+            }
+        }
+        guard let closing = closingDash, closing > 1 else { return markdown }
+
+        // Parse key-value pairs; every non-blank line must match `key: value`
+        var parsedFields: [(key: String, value: String)] = []
+        for i in 1..<closing {
+            let cleaned = lines[i].replacingOccurrences(of: "**", with: "")
+            let trimmed = cleaned.trimmingCharacters(in: CharacterSet.whitespaces)
+            if trimmed.isEmpty { continue }
+            guard let colonRange = cleaned.range(of: ":") else {
+                // Non-blank line without `:` → not front matter
+                return markdown
+            }
+            let key = String(cleaned[cleaned.startIndex..<colonRange.lowerBound]).trimmingCharacters(in: CharacterSet.whitespaces)
+            let value = String(cleaned[colonRange.upperBound...]).trimmingCharacters(in: CharacterSet.whitespaces)
+            if key.isEmpty { return markdown }
+            parsedFields.append((key: key, value: value))
+        }
+
+        // Must have at least one field to be valid front matter
+        guard !parsedFields.isEmpty else { return markdown }
+        fields = parsedFields
+
+        let remaining = Array(lines[(closing + 1)...]).joined(separator: "\n")
+        return remaining
+    }
+
+    func renderHTML() -> String {
+        guard !fields.isEmpty else { return "" }
+        var html = "<div class=\"front-matter\"><dl>"
+        for field in fields {
+            html += "<dt>\(field.key.htmlEscaped)</dt><dd>\(field.value.htmlEscaped)</dd>"
+        }
+        html += "</dl></div>"
+        return html
+    }
+}
+
 // MARK: - Footnote Preprocessor
 
 private struct FootnoteData {
+    private static let definitionRegex = try! NSRegularExpression(pattern: #"^\[\^([^\]]+)\]:\s*(.+)$"#, options: .anchorsMatchLines)
     var definitions: [(id: String, content: String)] = []
 
     mutating func extractDefinitions(from markdown: String) -> String {
-        let pattern = #"^\[\^([^\]]+)\]:\s*(.+)$"#
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: .anchorsMatchLines) else {
-            return markdown
-        }
+        let regex = Self.definitionRegex
         let nsString = markdown as NSString
         let matches = regex.matches(in: markdown, range: NSRange(location: 0, length: nsString.length))
 
@@ -59,11 +118,18 @@ private struct FootnoteData {
 // MARK: - Main Renderer
 
 enum MarkdownRenderer {
-    static func renderHTML(from markdown: String, theme: AppThemeMode = .auto, fontSize: CGFloat = 16) -> String {
+    static func renderHTML(from markdown: String, baseURL: URL? = nil, theme: AppThemeMode = .auto, fontSize: CGFloat = 16) -> String {
         let features = detectFeatures(in: markdown)
 
+        // Pre-process: extract front matter
+        var frontMatter = FrontMatter()
+        var processed = frontMatter.extract(from: markdown)
+
+        // Pre-process: encode spaces in image/link destinations (CommonMark disallows spaces)
+        processed = preprocessLinkDestinations(processed)
+
         // Pre-process: emoji shortcodes
-        var processed = EmojiMap.convert(markdown)
+        processed = EmojiMap.convert(processed)
 
         // Pre-process: extract footnote definitions
         var footnotes = FootnoteData()
@@ -71,8 +137,8 @@ enum MarkdownRenderer {
 
         // Parse & render AST
         let document = Document(parsing: processed)
-        var renderer = HTMLVisitor()
-        var bodyHTML = renderer.visit(document)
+        var renderer = HTMLVisitor(baseURL: baseURL)
+        var bodyHTML = frontMatter.renderHTML() + renderer.visit(document)
 
         // Post-process: footnote references [^id] → superscript links
         bodyHTML = processFootnoteReferences(bodyHTML)
@@ -86,12 +152,41 @@ enum MarkdownRenderer {
         return wrapInFullHTML(body: bodyHTML, theme: theme, fontSize: fontSize, features: features)
     }
 
+    // MARK: - Link Destination Preprocessor
+
+    /// Encode spaces in image/link destinations so the CommonMark parser recognizes them.
+    /// CommonMark does not allow ASCII spaces in link destinations unless wrapped in `<>`.
+    /// Skips links that have a quoted title portion like `[text](url "title")`.
+    private static let linkDestRegex = try! NSRegularExpression(pattern: #"(\!?\[[^\]]*\]\()([^)]+)(\))"#, options: .anchorsMatchLines)
+
+    private static func preprocessLinkDestinations(_ markdown: String) -> String {
+        let regex = linkDestRegex
+        let nsString = markdown as NSString
+        let matches = regex.matches(in: markdown, range: NSRange(location: 0, length: nsString.length))
+
+        var result = markdown as NSString
+        for match in matches.reversed() {
+            let urlRange = match.range(at: 2)
+            let payload = result.substring(with: urlRange)
+
+            // Skip if payload contains a quoted title portion
+            if payload.contains("\"") || payload.contains("'") { continue }
+            // Only process if payload actually has spaces
+            guard payload.contains(" ") else { continue }
+
+            let encoded = payload.replacingOccurrences(of: " ", with: "%20")
+            result = result.replacingCharacters(in: urlRange, with: encoded) as NSString
+        }
+        return result as String
+    }
+
     // MARK: - Footnote References
+
+    private static let footnoteRefRegex = try! NSRegularExpression(pattern: #"\[\^([^\]]+)\]"#)
 
     private static func processFootnoteReferences(_ html: String) -> String {
         // Replace [^id] with superscript link (these appear as literal text after AST processing)
-        let pattern = #"\[\^([^\]]+)\]"#
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return html }
+        let regex = footnoteRefRegex
         let nsString = html as NSString
         return regex.stringByReplacingMatches(
             in: html,
@@ -102,49 +197,38 @@ enum MarkdownRenderer {
 
     // MARK: - Admonitions
 
-    private static func processAdmonitions(_ html: String) -> String {
-        let types: [(pattern: String, label: String, cssClass: String)] = [
-            ("\\[!NOTE\\]", "Note", "note"),
-            ("\\[!TIP\\]", "Tip", "tip"),
-            ("\\[!IMPORTANT\\]", "Important", "important"),
-            ("\\[!WARNING\\]", "Warning", "warning"),
-            ("\\[!CAUTION\\]", "Caution", "caution"),
-        ]
+    private static let admonitionTypes: [(key: String, label: String, cssClass: String)] = [
+        ("NOTE", "Note", "note"), ("TIP", "Tip", "tip"),
+        ("IMPORTANT", "Important", "important"), ("WARNING", "Warning", "warning"),
+        ("CAUTION", "Caution", "caution"),
+    ]
+    private static let admonitionOpenRegex: NSRegularExpression = {
+        let keys = admonitionTypes.map { NSRegularExpression.escapedPattern(for: "[!\($0.key)]") }.joined(separator: "|")
+        return try! NSRegularExpression(pattern: "<blockquote>\\s*<p>\\s*(\(keys))\\s*", options: [.dotMatchesLineSeparators])
+    }()
+    private static let admonitionCloseRegex = try! NSRegularExpression(pattern: #"(<div class="admonition[^"]*">[\s\S]*?)</blockquote>"#)
+    private static let admonitionLookup: [String: (label: String, cssClass: String)] = {
+        Dictionary(uniqueKeysWithValues: admonitionTypes.map { ("[!\($0.key)]", (label: $0.label, cssClass: $0.cssClass)) })
+    }()
 
-        var result = html
-        for type in types {
-            let pattern = "<blockquote>\\s*<p>\\s*\(type.pattern)\\s*"
-            guard let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators]) else { continue }
-            let ns = result as NSString
-            result = regex.stringByReplacingMatches(
-                in: result,
-                range: NSRange(location: 0, length: ns.length),
-                withTemplate: "<div class=\"admonition admonition-\(type.cssClass)\"><p class=\"admonition-title\">\(type.label)</p><p>"
-            )
+    private static func processAdmonitions(_ html: String) -> String {
+        // Single-pass open tag replacement
+        let ns = html as NSString
+        let matches = admonitionOpenRegex.matches(in: html, range: NSRange(location: 0, length: ns.length))
+        var result = html as NSString
+        for match in matches.reversed() {
+            let key = result.substring(with: match.range(at: 1))
+            guard let info = admonitionLookup[key] else { continue }
+            let replacement = "<div class=\"admonition admonition-\(info.cssClass)\"><p class=\"admonition-title\">\(info.label)</p><p>"
+            result = result.replacingCharacters(in: match.range, with: replacement) as NSString
         }
-        // Close admonition divs (replace matching </blockquote>)
-        // After opening an admonition, the next </blockquote> should become </div>
-        // Simple approach: replace </blockquote> that follows admonition content
-        result = result.replacingOccurrences(
-            of: "</blockquote>",
-            with: "</blockquote>"  // keep as-is initially
-        )
-        // More targeted: find admonition divs and fix their closing tags
-        let closingPattern = #"(<div class="admonition[^"]*">[\s\S]*?)</blockquote>"#
-        if let closeRegex = try? NSRegularExpression(pattern: closingPattern, options: []) {
-            var nsResult = result as NSString
-            // Iteratively fix from last to first to preserve ranges
-            let matches = closeRegex.matches(in: result, range: NSRange(location: 0, length: nsResult.length))
-            for match in matches.reversed() {
-                let fullRange = match.range
-                let innerRange = match.range(at: 1)
-                let inner = nsResult.substring(with: innerRange)
-                let replacement = inner + "</div>"
-                nsResult = nsResult.replacingCharacters(in: fullRange, with: replacement) as NSString
-            }
-            result = nsResult as String
+        // Close admonition divs
+        let closeMatches = admonitionCloseRegex.matches(in: result as String, range: NSRange(location: 0, length: result.length))
+        for match in closeMatches.reversed() {
+            let inner = result.substring(with: match.range(at: 1))
+            result = result.replacingCharacters(in: match.range, with: inner + "</div>") as NSString
         }
-        return result
+        return result as String
     }
 
     // MARK: - HTML Template
@@ -168,6 +252,21 @@ enum MarkdownRenderer {
         var scripts = """
         <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
         <script>hljs.highlightAll();</script>
+        <script>
+        document.addEventListener('error', function(e) {
+            if (e.target.tagName === 'IMG') {
+                var alt = e.target.alt;
+                if (alt) {
+                    var span = document.createElement('span');
+                    span.className = 'img-alt-fallback';
+                    span.textContent = alt;
+                    e.target.replaceWith(span);
+                } else {
+                    e.target.style.display = 'none';
+                }
+            }
+        }, true);
+        </script>
         """
 
         if features.needsKaTeX {
@@ -243,6 +342,8 @@ enum MarkdownRenderer {
             th, td { border-color: \(dark.border); }
             th { background: \(dark.codeBg); }
             hr { border-top-color: \(dark.border); }
+            .front-matter { background: \(dark.codeBg); border-color: \(dark.border); }
+            .front-matter dt { color: \(dark.blockquoteFg); }
             .admonition { border-color: #404040; }
             .footnotes { border-top-color: #404040; }
         }
@@ -259,7 +360,7 @@ enum MarkdownRenderer {
             color: \(fg);
             background: \(bg);
             padding: 40px;
-            max-width: 860px;
+            max-width: none;
             margin: 0 auto;
             -webkit-font-smoothing: antialiased;
         }
@@ -329,8 +430,36 @@ enum MarkdownRenderer {
             margin: 2em 0;
         }
         img { max-width: 100%; border-radius: 4px; }
+        .img-alt-fallback {
+            display: inline-block;
+            padding: 2px 6px;
+            font-size: 0.85em;
+            color: \(blockquoteFg);
+            font-style: italic;
+        }
         .task-list { list-style: none; padding-left: 0; }
         .task-list li { display: flex; align-items: baseline; gap: 0.4em; }
+
+        /* Front Matter */
+        .front-matter {
+            margin: 0 0 2em 0; padding: 16px 20px;
+            background: \(codeBg); border-radius: 8px;
+            border: 1px solid \(borderColor);
+        }
+        .front-matter dl {
+            display: grid; grid-template-columns: auto 1fr;
+            gap: 4px 16px; margin: 0;
+        }
+        .front-matter dt {
+            font-weight: 600; color: \(blockquoteFg);
+            white-space: nowrap;
+        }
+        .front-matter dd { margin: 0; }
+
+        /* Table wrapper for responsive overflow */
+        .table-wrapper { overflow-x: auto; margin: 1em 0; }
+        .table-wrapper table { margin: 0; }
+        td { word-break: break-word; }
 
         /* Mermaid */
         .mermaid { margin: 1em 0; text-align: center; }
@@ -390,7 +519,12 @@ enum MarkdownRenderer {
 private struct HTMLVisitor: MarkupVisitor {
     typealias Result = String
 
-    private var slugCounts: [String: Int] = [:]
+    let baseURL: URL?
+    private var slugGen = SlugGenerator()
+
+    init(baseURL: URL? = nil) {
+        self.baseURL = baseURL
+    }
 
     mutating func defaultVisit(_ markup: any Markup) -> String {
         visitChildren(of: markup)
@@ -402,11 +536,8 @@ private struct HTMLVisitor: MarkupVisitor {
 
     mutating func visitHeading(_ heading: Heading) -> String {
         let content = visitChildren(of: heading)
-        let plainText = extractAllPlainText(from: heading)
-        let baseSlug = plainText.slugified
-        let count = slugCounts[baseSlug, default: 0]
-        slugCounts[baseSlug] = count + 1
-        let slug = count == 0 ? baseSlug : "\(baseSlug)-\(count)"
+        let plainText = extractPlainText(from: heading)
+        let slug = slugGen.slug(for: plainText)
         return "<h\(heading.level) id=\"\(slug)\">\(content)</h\(heading.level)>"
     }
 
@@ -416,7 +547,7 @@ private struct HTMLVisitor: MarkupVisitor {
     }
 
     mutating func visitText(_ text: Markdown.Text) -> String {
-        escapeHTML(text.string)
+        text.string.htmlEscaped
     }
 
     mutating func visitEmphasis(_ emphasis: Emphasis) -> String {
@@ -432,7 +563,7 @@ private struct HTMLVisitor: MarkupVisitor {
     }
 
     mutating func visitInlineCode(_ inlineCode: InlineCode) -> String {
-        "<code>\(escapeHTML(inlineCode.code))</code>"
+        "<code>\(inlineCode.code.htmlEscaped)</code>"
     }
 
     mutating func visitCodeBlock(_ codeBlock: CodeBlock) -> String {
@@ -443,20 +574,21 @@ private struct HTMLVisitor: MarkupVisitor {
             return "<pre class=\"mermaid\">\(codeBlock.code)</pre>"
         }
 
-        let langClass = lang.isEmpty ? "" : " class=\"language-\(escapeHTML(lang))\""
-        return "<pre><code\(langClass)>\(escapeHTML(codeBlock.code))</code></pre>"
+        let langClass = lang.isEmpty ? "" : " class=\"language-\(lang.htmlEscaped)\""
+        return "<pre><code\(langClass)>\(codeBlock.code.htmlEscaped)</code></pre>"
     }
 
     mutating func visitLink(_ link: Markdown.Link) -> String {
         let href = link.destination ?? ""
         let content = visitChildren(of: link)
-        return "<a href=\"\(escapeHTML(href))\">\(content)</a>"
+        return "<a href=\"\(href.htmlEscaped)\">\(content)</a>"
     }
 
     mutating func visitImage(_ image: Markdown.Image) -> String {
         let src = image.source ?? ""
-        let alt = extractAllPlainText(from: image)
-        return "<img src=\"\(escapeHTML(src))\" alt=\"\(escapeHTML(alt))\">"
+        let resolvedSrc = resolveImagePath(src)
+        let alt = extractPlainText(from: image)
+        return "<img src=\"\(resolvedSrc.htmlEscaped)\" alt=\"\(alt.htmlEscaped)\">"
     }
 
     mutating func visitUnorderedList(_ unorderedList: UnorderedList) -> String {
@@ -494,31 +626,60 @@ private struct HTMLVisitor: MarkupVisitor {
     }
 
     mutating func visitHTMLBlock(_ html: HTMLBlock) -> String {
-        html.rawHTML
+        sanitizeHTML(html.rawHTML)
     }
 
     mutating func visitInlineHTML(_ html: InlineHTML) -> String {
-        html.rawHTML
+        sanitizeHTML(html.rawHTML)
+    }
+
+    private static let dangerousTags = ["script", "iframe", "object", "embed", "form", "meta"]
+    private static let dangerousTagRegex: NSRegularExpression = {
+        let tags = dangerousTags.joined(separator: "|")
+        return try! NSRegularExpression(
+            pattern: #"<\s*/?\s*(\#(tags)|link\b[^>]*rel\s*=)[^>]*>"#,
+            options: [.caseInsensitive, .dotMatchesLineSeparators]
+        )
+    }()
+
+    private func sanitizeHTML(_ raw: String) -> String {
+        let ns = raw as NSString
+        if Self.dangerousTagRegex.firstMatch(in: raw, range: NSRange(location: 0, length: ns.length)) != nil {
+            return raw.htmlEscaped
+        }
+        return raw
     }
 
     mutating func visitTable(_ table: Table) -> String {
-        var result = "<table>\n<thead>\n<tr>\n"
+        let alignments = table.columnAlignments
+        var result = "<div class=\"table-wrapper\"><table>\n<thead>\n<tr>\n"
         let head = table.head
-        for cell in head.cells {
+        for (i, cell) in head.cells.enumerated() {
             let content = visitChildren(of: cell)
-            result += "<th>\(content)</th>\n"
+            let align = alignmentStyle(alignments, index: i)
+            result += "<th\(align)>\(content)</th>\n"
         }
         result += "</tr>\n</thead>\n<tbody>\n"
         for row in table.body.rows {
             result += "<tr>\n"
-            for cell in row.cells {
+            for (i, cell) in row.cells.enumerated() {
                 let content = visitChildren(of: cell)
-                result += "<td>\(content)</td>\n"
+                let align = alignmentStyle(alignments, index: i)
+                result += "<td\(align)>\(content)</td>\n"
             }
             result += "</tr>\n"
         }
-        result += "</tbody>\n</table>"
+        result += "</tbody>\n</table></div>"
         return result
+    }
+
+    private func alignmentStyle(_ alignments: [Table.ColumnAlignment?], index: Int) -> String {
+        guard index < alignments.count, let alignment = alignments[index] else { return "" }
+        switch alignment {
+        case .left: return " style=\"text-align:left\""
+        case .center: return " style=\"text-align:center\""
+        case .right: return " style=\"text-align:right\""
+        }
     }
 
     mutating func visitSoftBreak(_ softBreak: SoftBreak) -> String {
@@ -539,25 +700,24 @@ private struct HTMLVisitor: MarkupVisitor {
         return parts.joined(separator: separator)
     }
 
-    private func escapeHTML(_ string: String) -> String {
-        string
-            .replacingOccurrences(of: "&", with: "&amp;")
-            .replacingOccurrences(of: "<", with: "&lt;")
-            .replacingOccurrences(of: ">", with: "&gt;")
-            .replacingOccurrences(of: "\"", with: "&quot;")
+    /// Resolve image path to an absolute file URL when baseURL is available.
+    /// Remote URLs (http/https/data) are left as-is.
+    private func resolveImagePath(_ path: String) -> String {
+        if path.hasPrefix("http://") || path.hasPrefix("https://") || path.hasPrefix("data:") {
+            return path
+        }
+        // Decode %20 back to spaces for filesystem resolution, then let URL handle encoding
+        let decoded = path.removingPercentEncoding ?? path
+        if let base = baseURL {
+            let resolved = base.appendingPathComponent(decoded)
+            return resolved.absoluteString
+        }
+        // No baseURL — percent-encode for relative use
+        let components = decoded.components(separatedBy: "/")
+        let encoded = components.map { component -> String in
+            component.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? component
+        }
+        return encoded.joined(separator: "/")
     }
 
-    private func extractAllPlainText(from markup: any Markup) -> String {
-        var result = ""
-        for child in markup.children {
-            if let text = child as? Markdown.Text {
-                result += text.string
-            } else if let code = child as? InlineCode {
-                result += code.code
-            } else {
-                result += extractAllPlainText(from: child)
-            }
-        }
-        return result
-    }
 }

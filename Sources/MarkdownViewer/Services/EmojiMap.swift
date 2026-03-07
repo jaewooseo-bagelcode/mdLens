@@ -1,12 +1,21 @@
 import Foundation
 
 enum EmojiMap {
+    private static let shortcodeRegex = try! NSRegularExpression(pattern: #":([a-z0-9_]+):"#)
+
     static func convert(_ text: String) -> String {
-        var result = text
-        for (code, emoji) in map {
-            result = result.replacingOccurrences(of: ":\(code):", with: emoji)
+        let ns = text as NSString
+        let matches = shortcodeRegex.matches(in: text, range: NSRange(location: 0, length: ns.length))
+        guard !matches.isEmpty else { return text }
+
+        var result = text as NSString
+        for match in matches.reversed() {
+            let code = ns.substring(with: match.range(at: 1))
+            if let emoji = map[code] {
+                result = result.replacingCharacters(in: match.range, with: emoji) as NSString
+            }
         }
-        return result
+        return result as String
     }
 
     // ~200 most commonly used emoji shortcodes

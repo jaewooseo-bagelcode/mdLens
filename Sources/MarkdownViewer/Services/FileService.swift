@@ -37,8 +37,6 @@ enum FileService {
         }.map { childURL in
             let isDir = (try? childURL.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
             return FileTreeNode(
-                id: childURL,
-                name: childURL.lastPathComponent,
                 url: childURL,
                 isDirectory: isDir,
                 children: isDir ? buildFileTree(at: childURL) : nil
@@ -63,8 +61,7 @@ enum FileService {
 
         var results: [URL] = []
         for case let fileURL as URL in enumerator {
-            let ext = fileURL.pathExtension.lowercased()
-            if ext == "md" || ext == "markdown" || ext == "mdown" || ext == "mkd" {
+            if markdownExtensions.contains(fileURL.pathExtension.lowercased()) {
                 results.append(fileURL)
             }
         }

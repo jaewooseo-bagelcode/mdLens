@@ -26,7 +26,13 @@ final class FileWatcher: @unchecked Sendable {
         )
 
         source.setEventHandler { [weak self] in
-            self?.handleEvent()
+            guard let self else { return }
+            let flags = source.data
+            self.handleEvent()
+            // Atomic save (delete+recreate or rename): restart watcher on the new file
+            if flags.contains(.delete) || flags.contains(.rename) {
+                self.restartWhenFileReady()
+            }
         }
 
         source.setCancelHandler { [weak self] in
@@ -45,6 +51,20 @@ final class FileWatcher: @unchecked Sendable {
         debounceWorkItem?.cancel()
         source?.cancel()
         source = nil
+    }
+
+    /// Poll until the file reappears (max ~5s), then restart the watcher.
+    private func restartWhenFileReady(attempt: Int = 0) {
+        let maxAttempts = 50
+        guard attempt < maxAttempts else { return }
+
+        if FileManager.default.fileExists(atPath: url.path) {
+            start()
+        } else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                self?.restartWhenFileReady(attempt: attempt + 1)
+            }
+        }
     }
 
     private func handleEvent() {

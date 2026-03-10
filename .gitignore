@@ -1,5 +1,7 @@
 .env
+.DS_Store
 .build/
+.codex-review-cache/
 .scs/
 .claude/
 mdLens.app/

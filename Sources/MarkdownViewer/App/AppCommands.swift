@@ -33,6 +33,14 @@ struct AppCommands: Commands {
             }
         }
 
+        CommandGroup(replacing: .toolbar) {
+            Button("Reload") {
+                appState.reloadCurrentDocument()
+            }
+            .keyboardShortcut("r")
+            .disabled(appState.currentDocument == nil)
+        }
+
         CommandGroup(after: .sidebar) {
             Button(appState.isSidebarVisible ? "Hide Sidebar" : "Show Sidebar") {
                 appState.isSidebarVisible.toggle()

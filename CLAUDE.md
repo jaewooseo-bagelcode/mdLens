@@ -20,14 +20,25 @@ open mdLens.app
 
 ## Release Build (Signed + Notarized)
 
-```bash
-# Build, sign, notarize, and create zip
-./scripts/build-release.sh 1.2.0
+Releases are tagged by git commit hash (no semver). The build script derives the hash from `HEAD`
+and injects it into `Sources/MarkdownViewer/Services/BuildInfo.swift` at build time.
 
-# Upload to GitHub release
-gh release create v1.2.0 --title "v1.2.0 — Title" --notes "..."
-gh release upload v1.2.0 /tmp/mdLens-v1.2.0-arm64.zip
+```bash
+# Commit all changes first (script refuses on dirty tree)
+./scripts/build-release.sh
+# → produces /tmp/mdLens-build-<hash>-arm64.zip
+
+gh release create build-<hash> --repo jaewooseo-bagelcode/mdLens \
+    --title "build-<hash>" --notes "Build <hash>" /tmp/mdLens-build-<hash>-arm64.zip
 ```
+
+### Auto-update
+`Updater.swift` runs on app launch. If `gh` CLI is available on PATH
+(`/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin`) and the latest release tag's hash differs
+from `BuildInfo.commitHash`, it downloads + unzips the new `.app` into `/tmp`, then swaps it
+into `/Applications/mdLens.app` the moment no windows are visible (frictionless). The swap
+terminates the app; next launch is the new build. Dev builds (`commitHash == "dev"`) skip
+the check entirely.
 
 ### Notarization Setup (one-time)
 The build script skips notarization if the keychain profile is not configured.

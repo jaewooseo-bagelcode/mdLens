@@ -571,7 +571,7 @@ private struct HTMLVisitor: MarkupVisitor {
 
         // Mermaid: render as div for mermaid.js
         if lang.lowercased() == "mermaid" {
-            return "<pre class=\"mermaid\">\(codeBlock.code)</pre>"
+            return "<pre class=\"mermaid\">\(codeBlock.code.htmlEscaped)</pre>"
         }
 
         let langClass = lang.isEmpty ? "" : " class=\"language-\(lang.htmlEscaped)\""

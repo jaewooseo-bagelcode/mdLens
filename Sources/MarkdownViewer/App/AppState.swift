@@ -34,8 +34,6 @@ final class AppState {
     var scrollToHeadingID: String?
     var isQuickOpenPresented: Bool = false
 
-    private var fileWatcher: FileWatcher?
-
     init() {
         loadRecentFiles()
     }
@@ -44,7 +42,6 @@ final class AppState {
         guard let document = FileService.loadDocument(from: url) else { return }
         applyDocument(document)
         addToRecentFiles(url)
-        startWatching(url: url)
     }
 
     func openFolder(url: URL) {
@@ -58,15 +55,7 @@ final class AppState {
         scrollToHeadingID = id
     }
 
-    private func startWatching(url: URL) {
-        fileWatcher?.stop()
-        fileWatcher = FileWatcher(url: url) { [weak self] in
-            self?.reloadCurrentDocument()
-        }
-        fileWatcher?.start()
-    }
-
-    private func reloadCurrentDocument() {
+    func reloadCurrentDocument() {
         guard let url = currentDocument?.url else { return }
         guard let document = FileService.loadDocument(from: url) else { return }
         applyDocument(document)

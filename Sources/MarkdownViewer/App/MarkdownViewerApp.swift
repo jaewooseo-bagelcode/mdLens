@@ -4,6 +4,10 @@ import SwiftUI
 struct MarkdownViewerApp: App {
     @State private var appState = AppState()
 
+    init() {
+        Updater.shared.start()
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()

@@ -18,42 +18,14 @@ cp .build/release/mdLens mdLens.app/Contents/MacOS/mdLens
 open mdLens.app
 ```
 
-## Release Build (Signed + Notarized)
+## Release & Auto-update
+Tag format is `build-<7-char-hash>` (no semver). See `README.md` for the full install,
+release, and auto-update flow — it's the authoritative doc. Do not duplicate details here.
 
-Releases are tagged by git commit hash (no semver). The build script derives the hash from `HEAD`
-and injects it into `Sources/MarkdownViewer/Services/BuildInfo.swift` at build time.
-
-```bash
-# Commit all changes first (script refuses on dirty tree)
-./scripts/build-release.sh
-# → produces /tmp/mdLens-build-<hash>-arm64.zip
-
-gh release create build-<hash> --repo jaewooseo-bagelcode/mdLens \
-    --title "build-<hash>" --notes "Build <hash>" /tmp/mdLens-build-<hash>-arm64.zip
-```
-
-### Auto-update
-`Updater.swift` runs on app launch. If `gh` CLI is available on PATH
-(`/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin`) and the latest release tag's hash differs
-from `BuildInfo.commitHash`, it downloads + unzips the new `.app` into `/tmp`, then swaps it
-into `/Applications/mdLens.app` the moment no windows are visible (frictionless). The swap
-terminates the app; next launch is the new build. Dev builds (`commitHash == "dev"`) skip
-the check entirely.
-
-### Notarization Setup (one-time)
-The build script skips notarization if the keychain profile is not configured.
-```bash
-xcrun notarytool store-credentials notarytool-profile \
-    --apple-id <APPLE_ID> \
-    --team-id 5FK7UUGMX3 \
-    --password <APP_SPECIFIC_PASSWORD>
-```
-
-### Signing Identity
-- **Developer ID**: `Developer ID Application: Sugarscone (5FK7UUGMX3)`
-- **Bundle ID**: `com.sugarscone.mdlens`
-- `swift build` produces ad-hoc signed binaries → Gatekeeper blocks these
-- Must use `codesign --options runtime --sign "Developer ID..."` for distribution
+Key invariants agents must preserve:
+- `swift build` alone produces an ad-hoc signed binary with `BuildInfo.commitHash == "dev"` — auto-update stays disabled.
+- `scripts/build-release.sh` is the only path that injects a real hash + Developer ID signs + notarizes.
+- Never hand-edit `CFBundleShortVersionString`; the script sets it from `git HEAD`.
 
 ## Architecture
 

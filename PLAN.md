@@ -5,7 +5,7 @@
 사이드바/폴더/아웃라인/퀵오픈은 미사용이라 영구 삭제.
 
 ## Current
-- [ ] 커밋 (사용자 요청 시) — 별도 브랜치 권장. 릴리스 시엔 scripts/build-release.sh로 재빌드 필요
+- [ ] 릴리스: `build-release.sh`(BuildInfo 해시 주입+서명+notarize) → `gh release create build-<hash>` → 기존 클라이언트 자동 업데이트 전파
 - [ ] (선택) 드래그-투-오픈 복원 — 구 onDrop 회귀. CLI 검증 불가라 보류, 사용자 판단 대기
 
 ## Blocked
@@ -13,6 +13,7 @@
 
 ## Done (압축)
 - 검토: 두 버그 근본원인 = 단일 `AppState` 전 윈도우 공유. 상세 git/대화 참조.
+- 커밋 f3898e6 → origin/main 푸시 완료 (소스만; 릴리스는 별도). 문서 sync-docs 완료(53/60).
 - DocumentGroup 전면 전환: `MarkdownFileDocument`+`AppSettings`(UserDefaults 영속) 신설, `MarkdownViewerApp`→DocumentGroup(viewing:), `DocumentView`가 루트(text+fileURL). 13개 파일 삭제(사이드바4·폴더·아웃라인·퀵오픈·AppState·FileService 등). 실증: 다중 파일→독립 창 2개 = Bug1·2 해결.
 - /verify(50/60) 후속 수정: W1 Reload를 `focusedSceneValue`로 교체(메뉴 enabled=true + 클릭 무크래시 실증) · W2 번들에 release 바이너리 반영+서명 · I2 README/CLAUDE.md DocumentGroup 구조로 동기화. 클린 release 빌드 통과.
 

@@ -2,30 +2,48 @@ import SwiftUI
 import WebKit
 
 struct DocumentView: View {
-    @Environment(AppState.self) private var appState
+    /// Content as loaded by DocumentGroup. Used as the baseline until the user reloads.
+    let text: String
+    /// Original on-disk URL, provided by FileDocumentConfiguration. Needed for
+    /// resolving relative image paths and for manual reload.
+    let fileURL: URL?
+
+    @Environment(AppSettings.self) private var settings
+    @State private var reloadedText: String?
+
+    private var displayText: String { reloadedText ?? text }
 
     var body: some View {
-        WebViewRepresentable(
-            html: MarkdownRenderer.renderHTML(
-                from: appState.currentDocument?.content ?? "",
-                baseURL: appState.currentDocument?.url.deletingLastPathComponent(),
-                theme: appState.theme,
-                fontSize: appState.fontSize
-            ),
-            baseURL: appState.currentDocument?.url.deletingLastPathComponent(),
-            scrollToID: appState.scrollToHeadingID,
-            onScrollComplete: {
-                appState.scrollToHeadingID = nil
-            }
-        )
+        VStack(spacing: 0) {
+            WebViewRepresentable(
+                html: MarkdownRenderer.renderHTML(
+                    from: displayText,
+                    baseURL: fileURL?.deletingLastPathComponent(),
+                    theme: settings.theme,
+                    fontSize: settings.fontSize
+                ),
+                baseURL: fileURL?.deletingLastPathComponent()
+            )
+            StatusBarView(stats: DocumentStats.compute(from: displayText), fileURL: fileURL)
+        }
+        // Scene-scoped (not focus-scoped) so the Reload menu command targets the
+        // frontmost document window even when no control inside it holds focus.
+        .focusedSceneValue(\.reloadAction, reload)
+    }
+
+    /// Re-read the file from disk to pick up external edits (Cmd+R).
+    private func reload() {
+        guard let fileURL else { return }
+        let accessing = fileURL.startAccessingSecurityScopedResource()
+        defer { if accessing { fileURL.stopAccessingSecurityScopedResource() } }
+        guard let data = try? Data(contentsOf: fileURL) else { return }
+        reloadedText = String(decoding: data, as: UTF8.self)
     }
 }
 
 struct WebViewRepresentable: NSViewRepresentable {
     let html: String
     let baseURL: URL?
-    let scrollToID: String?
-    let onScrollComplete: () -> Void
 
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
@@ -41,17 +59,9 @@ struct WebViewRepresentable: NSViewRepresentable {
             context.coordinator.lastBaseURL = baseURL
             loadContent(webView, context: context)
         }
-
-        if let id = scrollToID {
-            let js = "document.getElementById('\(id)')?.scrollIntoView({behavior:'smooth',block:'start'});"
-            webView.evaluateJavaScript(js)
-            DispatchQueue.main.async {
-                onScrollComplete()
-            }
-        }
     }
 
-    /// Load HTML via a temp file so WKWebView can access local images.
+    /// Load HTML via a per-window temp file so WKWebView can access local images.
     private func loadContent(_ webView: WKWebView, context: Context) {
         guard let baseURL = baseURL else {
             webView.loadHTMLString(html, baseURL: nil)
@@ -64,10 +74,11 @@ struct WebViewRepresentable: NSViewRepresentable {
             context.coordinator.tempFileURL = nil
         }
 
-        // Write to app-owned temp directory, grant read access to document directory
+        // Each window writes a uniquely named temp file so concurrent windows
+        // don't clobber each other's preview.
         let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("mdlens", isDirectory: true)
         try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-        let tempFile = tempDir.appendingPathComponent("preview.html")
+        let tempFile = tempDir.appendingPathComponent("preview-\(context.coordinator.id.uuidString).html")
         do {
             try html.write(to: tempFile, atomically: true, encoding: .utf8)
             context.coordinator.tempFileURL = tempFile
@@ -83,6 +94,7 @@ struct WebViewRepresentable: NSViewRepresentable {
     }
 
     class Coordinator {
+        let id = UUID()
         var lastHTML: String = ""
         var lastBaseURL: URL?
         var tempFileURL: URL?

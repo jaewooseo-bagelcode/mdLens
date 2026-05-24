@@ -2,57 +2,16 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct AppCommands: Commands {
-    @Bindable var appState: AppState
+    @FocusedValue(\.reloadAction) private var reloadAction
 
     var body: some Commands {
-        CommandGroup(replacing: .newItem) {
-            Button("Open...") {
-                appState.isFileImporterPresented = true
-            }
-            .keyboardShortcut("o")
-
-            Button("Open Folder...") {
-                appState.isFolderImporterPresented = true
-            }
-            .keyboardShortcut("o", modifiers: [.command, .shift])
-
-            Divider()
-
-            Menu("Open Recent") {
-                ForEach(appState.recentFiles, id: \.self) { url in
-                    Button(url.lastPathComponent) {
-                        appState.openFile(url: url)
-                    }
-                }
-                if !appState.recentFiles.isEmpty {
-                    Divider()
-                    Button("Clear Recent") {
-                        appState.clearRecentFiles()
-                    }
-                }
-            }
-        }
-
+        // DocumentGroup supplies New / Open / Open Recent natively.
         CommandGroup(replacing: .toolbar) {
             Button("Reload") {
-                appState.reloadCurrentDocument()
+                reloadAction?()
             }
             .keyboardShortcut("r")
-            .disabled(appState.currentDocument == nil)
-        }
-
-        CommandGroup(after: .sidebar) {
-            Button(appState.isSidebarVisible ? "Hide Sidebar" : "Show Sidebar") {
-                appState.isSidebarVisible.toggle()
-            }
-            .keyboardShortcut("l", modifiers: [.command, .shift])
-        }
-
-        CommandGroup(after: .textEditing) {
-            Button("Quick Open...") {
-                appState.isQuickOpenPresented = true
-            }
-            .keyboardShortcut("p")
+            .disabled(reloadAction == nil)
         }
 
         CommandGroup(after: .appSettings) {

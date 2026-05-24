@@ -29,6 +29,17 @@ Key invariants agents must preserve:
 
 ## Architecture
 
+### App Structure
+- **DocumentGroup(viewing: MarkdownFileDocument.self)** — read-only document app. Each open
+  file gets its own window/scene with independent state; there is **no shared app-wide document
+  singleton**. Opening N files (Finder multi-select, drag-to-Dock) yields N windows.
+- `MarkdownFileDocument` (FileDocument) holds the loaded text; the on-disk URL comes from
+  `FileDocumentConfiguration.fileURL` (needed for relative-image baseURL).
+- `AppSettings` (@Observable, single shared instance, UserDefaults-backed) holds cross-window
+  prefs (theme, fontSize). Injected via `.environment`.
+- Per-window menu actions (Reload) flow through `.focusedSceneValue` → `@FocusedValue` so the
+  command targets the frontmost document window.
+
 ### Rendering Pipeline (MarkdownRenderer.swift)
 1. Front matter extraction → styled HTML card
 2. Link destination preprocessing (encode spaces for CommonMark)
@@ -41,17 +52,17 @@ Key invariants agents must preserve:
 ### Key Design Decisions
 - **loadFileURL** instead of loadHTMLString: WKWebView needs file:// access for local images
 - Image paths resolved to absolute `file://` URLs in HTMLVisitor
-- Temp HTML written to `/tmp/mdlens/preview.html`, `allowingReadAccessTo: /`
+- Temp HTML written per-window to `/tmp/mdlens/preview-<uuid>.html`, `allowingReadAccessTo: /` (UUID avoids multi-window clobber)
 - Dangerous HTML tags (script, iframe, etc.) sanitized in visitHTMLBlock/visitInlineHTML
 
 ### Shared Utilities (String+Extensions.swift)
 - `extractPlainText(from:)` — recursive AST plain text extraction
-- `SlugGenerator` — heading ID generation (shared between OutlineParser + HTMLVisitor)
+- `SlugGenerator` — heading ID generation (used by HTMLVisitor for heading anchors)
 - `markdownExtensions` — `Set<String>` of recognized extensions
 - `String.htmlEscaped` — HTML entity escaping
 - `String.slugified` — heading text → URL-safe slug
 
 ## Conventions
 - All regexes cached as `static let` (no runtime compilation per render)
-- `AppState.applyDocument()` for shared load-parse-compute pipeline
-- UserDefaults keys as `static let` constants on AppState
+- UserDefaults keys as `static let` constants (e.g. on `AppSettings`)
+- No shared mutable app state across windows; document state lives per-scene via DocumentGroup

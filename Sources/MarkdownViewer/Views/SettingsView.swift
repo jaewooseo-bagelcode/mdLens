@@ -1,14 +1,14 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @Environment(AppState.self) private var appState
+    @Environment(AppSettings.self) private var settings
 
     var body: some View {
-        @Bindable var appState = appState
+        @Bindable var settings = settings
 
         TabView {
             Form {
-                Picker("Theme", selection: $appState.theme) {
+                Picker("Theme", selection: $settings.theme) {
                     ForEach(AppThemeMode.allCases, id: \.self) { mode in
                         Text(mode.rawValue).tag(mode)
                     }
@@ -16,10 +16,10 @@ struct SettingsView: View {
 
                 HStack {
                     Text("Font Size")
-                    Slider(value: $appState.fontSize, in: 12...24, step: 1) {
+                    Slider(value: $settings.fontSize, in: 12...24, step: 1) {
                         Text("Font Size")
                     }
-                    Text("\(Int(appState.fontSize))pt")
+                    Text("\(Int(settings.fontSize))pt")
                         .monospacedDigit()
                         .frame(width: 36, alignment: .trailing)
                 }

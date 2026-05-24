@@ -2,30 +2,26 @@ import SwiftUI
 
 @main
 struct MarkdownViewerApp: App {
-    @State private var appState = AppState()
+    @State private var settings = AppSettings()
 
     init() {
         Updater.shared.start()
     }
 
     var body: some Scene {
-        WindowGroup {
-            ContentView()
-                .environment(appState)
+        DocumentGroup(viewing: MarkdownFileDocument.self) { config in
+            DocumentView(text: config.document.text, fileURL: config.fileURL)
+                .environment(settings)
                 .frame(minWidth: 700, minHeight: 500)
-                .onOpenURL { url in
-                    appState.openFile(url: url)
-                }
-                .preferredColorScheme(appState.theme.colorScheme)
+                .preferredColorScheme(settings.theme.colorScheme)
         }
         .commands {
-            AppCommands(appState: appState)
+            AppCommands()
         }
-        .defaultSize(width: 1000, height: 700)
 
         Settings {
             SettingsView()
-                .environment(appState)
+                .environment(settings)
         }
     }
 }

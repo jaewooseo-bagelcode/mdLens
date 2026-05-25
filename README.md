@@ -31,22 +31,33 @@ Every release is tagged `build-<short-hash>` where `<short-hash>` is the 7-char 
 hash the binary was built from. The app embeds its own hash in `BuildInfo.swift` at build
 time.
 
-On launch the app runs `Updater.swift`:
+The updater splits download and install across launches so the app never swaps its own
+bundle while running (that races with teardown). On launch the app runs `Updater.swift`:
 
+**Stage (background, this launch):**
 1. Locates `gh` at `/opt/homebrew/bin/gh`, `/usr/local/bin/gh`, or `/usr/bin/gh`. If none
    are executable → skip silently.
-2. `gh release view --repo jaewooseo-bagelcode/mdLens --json tagName -q .tagName` →
-   compare the `build-<hash>` suffix to `BuildInfo.commitHash`.
-3. If different, downloads + unzips the new `.app` into `/tmp/mdlens-update-<tag>/`.
-4. Watches for "no visible windows" (checks immediately, otherwise observes
-   `NSWindow.willCloseNotification`). The moment the user closes the last window, a helper
-   bash script at `/tmp/mdlens-update-swap.sh` waits for the parent PID to exit, replaces
-   `/Applications/mdLens.app`, clears the quarantine xattr, and the app terminates itself.
-5. Next Dock click launches the new build.
+2. `gh release view ... -q .tagName` → compare the `build-<hash>` suffix to
+   `BuildInfo.commitHash`.
+3. If different, downloads + unzips the new `.app` into
+   `~/Library/Application Support/mdLens/updates/<tag>/`, verifies its code signature and
+   Team ID match the running app, and records a pointer in `UserDefaults`. Nothing is
+   swapped this session.
 
-Updates only happen when the UI is frictionless (no open windows). There is no polling,
-no toast, no prompt. A `BuildInfo.commitHash == "dev"` build (i.e. anything not produced by
-`scripts/build-release.sh`) skips the updater entirely.
+**Apply (next launch):**
+4. If a verified staged build is pending, the app spawns a detached helper
+   (`/tmp/mdlens-update-swap.sh`) that waits for the app's PID to exit, then atomically
+   swaps `/Applications/mdLens.app` (old moved aside → new moved in → old removed; rollback
+   on failure), clears the quarantine xattr, and relaunches.
+
+So an update fetched during one session installs the next time the app exits and is
+reopened — deterministically, via a process that outlives the app. No polling, no toast,
+no prompt, no window-close race. A `BuildInfo.commitHash == "dev"` build (anything not
+produced by `scripts/build-release.sh`) skips the updater entirely.
+
+**Bootstrap note:** because the *installed* app's updater performs the swap, a fix to the
+updater itself only takes effect one release later — the transition *to* the fixed build may
+need a manual install (replace `/Applications/mdLens.app` with the release zip's `.app`).
 
 **For agents:** do not invoke the updater manually. If a user is on an old build, either
 wait for them to restart, or reinstall using the snippet above.

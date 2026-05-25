@@ -7,3 +7,4 @@
 mdLens.app/
 MarkdownViewer.app/
 *.zip
+docs/research/**/.raw/

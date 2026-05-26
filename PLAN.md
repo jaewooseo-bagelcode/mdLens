@@ -5,18 +5,16 @@
 사이드바/폴더/아웃라인/퀵오픈은 미사용이라 영구 삭제.
 
 ## Current
-- [ ] 업데이터 수정본 릴리스 + 부트스트랩: 커밋·푸시 → build-release.sh → gh release → afefc12는 구 업데이터라 새 빌드를 수동 설치(부트스트랩) → 이후부터 자동 견고
-- [ ] (선택) 드래그-투-오픈 복원 — 구 onDrop 회귀. CLI 검증 불가라 보류, 사용자 판단 대기. 미복원 시 dead code `markdownExtensions`도 제거
-- [ ] 실사용 피드백 대기 — 멀티윈도우/다중오픈/Cmd+R 체감
+- [ ] (선택) 드래그-투-오픈 복원 결정 — 구 onDrop 회귀. 복원 시 직접 드롭 테스트 필요
 
 ## Blocked
 - (없음)
 
 ## Done (압축)
-- DocumentGroup 전면 전환(커밋 f3898e6): `MarkdownFileDocument`+`AppSettings`(UserDefaults 영속) 신설, `MarkdownViewerApp`→DocumentGroup(viewing:), `DocumentView` 루트(text+fileURL). 13개 파일 삭제(사이드바4·폴더·아웃라인·퀵오픈·AppState·FileService 등). 실증: 다중 파일→독립 창 2개 = Bug1·2 해결. 근본원인=단일 `AppState` 전 윈도우 공유.
-- /verify(50/60) 후속: W1 Reload `focusedSceneValue` 교체(메뉴 enabled + 클릭 실증) · W2 번들 release 반영 · I2 README/CLAUDE.md 동기화. 문서 sync 53/60.
-- 릴리스 **build-afefc12** 게시(Latest): Developer ID 서명+notarize(Accepted)+staple. 설치본 f7998d2의 구 업데이터가 다운로드는 했으나 swap 레이스로 미설치 → **수동 swap으로 afefc12 적용 완료**.
-- 업데이터 레이스 버그 진단·근본수정: 구조는 "창 닫힘 시 self-swap"이라 Cmd+Q 종료에 졌음. /deep-research(53/60, `docs/research/macos-self-update-patterns/`)로 Sparkle 5원칙 도출 → `Updater.swift` 재작성(스테이징+detached helper+atomic swap+서명/TeamID 검증). 빌드 통과, 검증 게이트·swap 로직 실증.
+- DocumentGroup 전면 전환(f3898e6): 단일 `AppState` 공유가 근본원인 → 문서당 독립 scene. `MarkdownFileDocument`+`AppSettings`(UserDefaults 영속) 신설, `DocumentView` 루트, 13개 파일 삭제. 다중 파일→독립 창 실증 = Bug1·2(마지막 open 덮어씀/다중오픈) 해결. /verify 50/60 후속(Reload `focusedSceneValue` 등). 릴리스 build-afefc12.
+- 자동 업데이터 견고화(ffe7b20): 구 "창 닫힘 시 self-swap"이 Cmd+Q 레이스로 미설치됨 → /deep-research(53/60, `docs/research/macos-self-update-patterns/`)로 Sparkle 5원칙 도출 → `Updater.swift` 재작성(실행 시 스테이징 + 다음 실행에 detached helper가 PID 종료 대기→atomic swap→relaunch + 서명/TeamID 검증). 릴리스 build-ffe7b20 → 부트스트랩 swap으로 설치 확인(현재 설치=Latest=ffe7b20). 이후 자동 업데이트 자립.
+- 실사용 확인: 멀티윈도우 독립성·자동 업데이트 사용자 확인 완료.
+- md/파일 링크 클릭 동작: `visitLink`이 상대·절대·~ 경로를 절대 `file://`로 해석(앵커/http/mailto는 보존), WebView에 nav delegate 추가(.md→mdLens 새 창, 기타 파일/웹→기본 앱, #앵커→스크롤). 근본원인=링크 destination 미해석 + nav delegate 부재. end-to-end 실증(절대경로 56링크 깨끗 렌더).
 
 ## Decisions
 | 항목 | 결정 | 이유 |

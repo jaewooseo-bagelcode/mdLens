@@ -50,6 +50,7 @@ struct WebViewRepresentable: NSViewRepresentable {
         config.preferences.isElementFullscreenEnabled = false
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.setValue(false, forKey: "drawsBackground")
+        webView.navigationDelegate = context.coordinator
         return webView
     }
 
@@ -93,7 +94,7 @@ struct WebViewRepresentable: NSViewRepresentable {
         Coordinator()
     }
 
-    class Coordinator {
+    class Coordinator: NSObject, WKNavigationDelegate {
         let id = UUID()
         var lastHTML: String = ""
         var lastBaseURL: URL?
@@ -102,6 +103,42 @@ struct WebViewRepresentable: NSViewRepresentable {
         deinit {
             if let url = tempFileURL {
                 try? FileManager.default.removeItem(at: url)
+            }
+        }
+
+        /// Route link clicks: markdown files open in a new mdLens window, other
+        /// local files / web URLs open in their default app, and in-page anchors
+        /// scroll within the current document. Programmatic and initial loads
+        /// (the temp HTML) pass through untouched.
+        func webView(_ webView: WKWebView,
+                     decidePolicyFor navigationAction: WKNavigationAction,
+                     decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+            guard navigationAction.navigationType == .linkActivated,
+                  let url = navigationAction.request.url else {
+                decisionHandler(.allow)
+                return
+            }
+
+            switch url.scheme {
+            case "http", "https", "mailto":
+                NSWorkspace.shared.open(url)
+                decisionHandler(.cancel)
+            case "file":
+                // Same-document anchor (#heading) — let WebKit scroll.
+                if url.path == webView.url?.path {
+                    decisionHandler(.allow)
+                    return
+                }
+                if markdownExtensions.contains(url.pathExtension.lowercased()) {
+                    // Open in this app → DocumentGroup spawns a new window.
+                    let cfg = NSWorkspace.OpenConfiguration()
+                    NSWorkspace.shared.open([url], withApplicationAt: Bundle.main.bundleURL, configuration: cfg)
+                } else {
+                    NSWorkspace.shared.open(url)
+                }
+                decisionHandler(.cancel)
+            default:
+                decisionHandler(.allow)
             }
         }
     }

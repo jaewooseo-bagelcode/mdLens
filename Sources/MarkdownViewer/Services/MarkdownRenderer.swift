@@ -579,7 +579,7 @@ private struct HTMLVisitor: MarkupVisitor {
     }
 
     mutating func visitLink(_ link: Markdown.Link) -> String {
-        let href = link.destination ?? ""
+        let href = resolveLinkHref(link.destination ?? "")
         let content = visitChildren(of: link)
         return "<a href=\"\(href.htmlEscaped)\">\(content)</a>"
     }
@@ -698,6 +698,42 @@ private struct HTMLVisitor: MarkupVisitor {
             parts.append(visit(child))
         }
         return parts.joined(separator: separator)
+    }
+
+    /// Resolve a link destination so local file links become clickable in the
+    /// viewer. Remote URLs (http/https/mailto/data/file) and in-page anchors
+    /// (`#heading`) are left untouched; relative paths — including any `#frag`
+    /// suffix — are resolved to an absolute file URL against the document's
+    /// directory. Without this, relative `.md` links resolve against the temp
+    /// HTML's location (`/tmp/mdlens/`) and point nowhere.
+    private func resolveLinkHref(_ href: String) -> String {
+        if href.isEmpty || href.hasPrefix("#") { return href }
+        for scheme in ["http://", "https://", "mailto:", "data:", "file://"] where href.hasPrefix(scheme) {
+            return href
+        }
+        // Preserve a trailing #fragment across resolution.
+        let pathPart: String
+        let fragment: String
+        if let hash = href.firstIndex(of: "#") {
+            pathPart = String(href[..<hash])
+            fragment = String(href[hash...])
+        } else {
+            pathPart = href
+            fragment = ""
+        }
+        guard !pathPart.isEmpty else { return href }
+        let decoded = pathPart.removingPercentEncoding ?? pathPart
+        // Absolute filesystem path (and ~ home) → file URL directly; do NOT append
+        // to baseURL (that would prepend the document dir and break the path).
+        if decoded.hasPrefix("/") {
+            return URL(fileURLWithPath: decoded).absoluteString + fragment
+        }
+        if decoded.hasPrefix("~/") {
+            return URL(fileURLWithPath: (decoded as NSString).expandingTildeInPath).absoluteString + fragment
+        }
+        // Relative path → resolve against the document's directory.
+        guard let base = baseURL else { return href }
+        return base.appendingPathComponent(decoded).absoluteString + fragment
     }
 
     /// Resolve image path to an absolute file URL when baseURL is available.

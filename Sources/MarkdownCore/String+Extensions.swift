@@ -30,7 +30,7 @@ struct SlugGenerator {
 
 // MARK: - Markdown File Extensions
 
-let markdownExtensions: Set<String> = ["md", "markdown", "mdown", "mkd"]
+public let markdownExtensions: Set<String> = ["md", "markdown", "mdown", "mkd"]
 
 // MARK: - String Extensions
 

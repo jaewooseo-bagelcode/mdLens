@@ -1,4 +1,5 @@
 import SwiftUI
+import MarkdownCore
 
 @main
 struct MarkdownViewerApp: App {

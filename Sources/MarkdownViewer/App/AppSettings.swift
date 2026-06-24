@@ -1,4 +1,5 @@
 import SwiftUI
+import MarkdownCore
 
 /// App-global, cross-window preferences. Intentionally a single shared instance
 /// (unlike document state, which is per-window via DocumentGroup). Persists to

@@ -1,4 +1,5 @@
 import SwiftUI
+import MarkdownCore
 
 struct SettingsView: View {
     @Environment(AppSettings.self) private var settings

@@ -52,6 +52,24 @@ cat > "$ENTITLEMENTS" <<'PLIST'
 </plist>
 PLIST
 
+# Embed the Quick Look preview extension, signed with ONLY the minimal sandbox
+# entitlements (app-sandbox + user-selected read + network.client). Extra
+# hardened-runtime entitlements here would break JavaScript in the QL WebContent
+# process. Nested code is signed before the outer app seals it.
+echo "==> Embedding Quick Look extension..."
+APPEX="$APP/Contents/PlugIns/mdLensQL.appex"
+APPEX_ID="$BUNDLE_ID.quicklook"
+mkdir -p "$APPEX/Contents/MacOS"
+cp ".build/release/mdLensQL" "$APPEX/Contents/MacOS/mdLensQL"
+cp Sources/QuickLookExtension/Info.plist "$APPEX/Contents/Info.plist"
+plutil -replace CFBundleIdentifier -string "$APPEX_ID" "$APPEX/Contents/Info.plist"
+codesign --force --options runtime \
+    --sign "$IDENTITY" \
+    --identifier "$APPEX_ID" \
+    --entitlements Sources/QuickLookExtension/QuickLook.entitlements \
+    --timestamp \
+    "$APPEX"
+
 echo "==> Signing with: $IDENTITY"
 codesign --force --options runtime \
     --sign "$IDENTITY" \

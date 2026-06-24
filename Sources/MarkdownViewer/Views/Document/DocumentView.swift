@@ -1,5 +1,6 @@
 import SwiftUI
 import WebKit
+import MarkdownCore
 
 struct DocumentView: View {
     /// Content as loaded by DocumentGroup. Used as the baseline until the user reloads.

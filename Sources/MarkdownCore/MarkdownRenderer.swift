@@ -117,8 +117,8 @@ private struct FootnoteData {
 
 // MARK: - Main Renderer
 
-enum MarkdownRenderer {
-    static func renderHTML(from markdown: String, baseURL: URL? = nil, theme: AppThemeMode = .auto, fontSize: CGFloat = 16) -> String {
+public enum MarkdownRenderer {
+    public static func renderHTML(from markdown: String, baseURL: URL? = nil, theme: AppThemeMode = .auto, fontSize: CGFloat = 16) -> String {
         let features = detectFeatures(in: markdown)
 
         // Pre-process: extract front matter

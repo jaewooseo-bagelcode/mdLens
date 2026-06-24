@@ -43,12 +43,26 @@ cp "$BINARY" "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 plutil -replace CFBundleShortVersionString -string "$HASH" "$APP_BUNDLE/Contents/Info.plist"
 plutil -replace CFBundleVersion -string "$HASH" "$APP_BUNDLE/Contents/Info.plist"
 
-echo "[3/6] Code signing..."
-codesign --force --deep --options runtime \
-    --sign "$SIGNING_IDENTITY" \
-    --identifier "$BUNDLE_ID" \
-    --timestamp \
-    "$APP_BUNDLE"
+# Refresh the embedded Quick Look extension and sign it with ONLY the minimal
+# sandbox entitlements (app-sandbox + user-selected read + network.client).
+# Signing it separately (and the app WITHOUT --deep) is required: --deep would
+# overwrite these with the app's entitlements and kill JavaScript in the QL host.
+QL_BINARY="$BUILD_DIR/mdLensQL"
+APPEX="$APP_BUNDLE/Contents/PlugIns/mdLensQL.appex"
+APPEX_ID="$BUNDLE_ID.quicklook"
+mkdir -p "$APPEX/Contents/MacOS"
+cp "$QL_BINARY" "$APPEX/Contents/MacOS/mdLensQL"
+cp "$PROJECT_DIR/Sources/QuickLookExtension/Info.plist" "$APPEX/Contents/Info.plist"
+plutil -replace CFBundleIdentifier -string "$APPEX_ID" "$APPEX/Contents/Info.plist"
+
+echo "[3/6] Code signing (extension, then app — no --deep)..."
+codesign --force --options runtime \
+    --sign "$SIGNING_IDENTITY" --identifier "$APPEX_ID" \
+    --entitlements "$PROJECT_DIR/Sources/QuickLookExtension/QuickLook.entitlements" \
+    --timestamp "$APPEX"
+codesign --force --options runtime \
+    --sign "$SIGNING_IDENTITY" --identifier "$BUNDLE_ID" \
+    --timestamp "$APP_BUNDLE"
 codesign --verify --verbose=2 "$APP_BUNDLE"
 
 echo "[4/6] Creating zip..."

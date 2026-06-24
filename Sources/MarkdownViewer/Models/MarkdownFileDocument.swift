@@ -10,6 +10,8 @@ struct MarkdownFileDocument: FileDocument {
         for ext in ["md", "markdown", "mdown", "mkd"] {
             if let t = UTType(filenameExtension: ext) { types.append(t) }
         }
+        // Raw HTML: rendered directly in WKWebView (markdown pipeline bypassed).
+        types.append(.html)
         return types
     }()
 

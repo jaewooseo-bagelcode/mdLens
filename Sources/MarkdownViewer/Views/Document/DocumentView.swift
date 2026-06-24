@@ -10,20 +10,34 @@ struct DocumentView: View {
 
     @Environment(AppSettings.self) private var settings
     @State private var reloadedText: String?
+    /// Bumped on Cmd+R so a raw .html document reloads from disk (no rendered
+    /// HTML string changes to trigger updateNSView in that path).
+    @State private var reloadToken = 0
 
     private var displayText: String { reloadedText ?? text }
 
+    /// Raw HTML files bypass the markdown pipeline and are loaded directly so
+    /// their own relative resources (scripts, images, CSS) resolve correctly.
+    private var isHTML: Bool {
+        guard let ext = fileURL?.pathExtension.lowercased() else { return false }
+        return ext == "html" || ext == "htm"
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            WebViewRepresentable(
-                html: MarkdownRenderer.renderHTML(
-                    from: displayText,
-                    baseURL: fileURL?.deletingLastPathComponent(),
-                    theme: settings.theme,
-                    fontSize: settings.fontSize
-                ),
-                baseURL: fileURL?.deletingLastPathComponent()
-            )
+            if isHTML, let fileURL {
+                WebViewRepresentable(directFileURL: fileURL, reloadToken: reloadToken)
+            } else {
+                WebViewRepresentable(
+                    html: MarkdownRenderer.renderHTML(
+                        from: displayText,
+                        baseURL: fileURL?.deletingLastPathComponent(),
+                        theme: settings.theme,
+                        fontSize: settings.fontSize
+                    ),
+                    baseURL: fileURL?.deletingLastPathComponent()
+                )
+            }
             StatusBarView(stats: DocumentStats.compute(from: displayText), fileURL: fileURL)
         }
         // Scene-scoped (not focus-scoped) so the Reload menu command targets the
@@ -34,6 +48,11 @@ struct DocumentView: View {
     /// Re-read the file from disk to pick up external edits (Cmd+R).
     private func reload() {
         guard let fileURL else { return }
+        // Raw .html is loaded straight from disk; just retrigger the load.
+        if isHTML {
+            reloadToken += 1
+            return
+        }
         let accessing = fileURL.startAccessingSecurityScopedResource()
         defer { if accessing { fileURL.stopAccessingSecurityScopedResource() } }
         guard let data = try? Data(contentsOf: fileURL) else { return }
@@ -42,8 +61,15 @@ struct DocumentView: View {
 }
 
 struct WebViewRepresentable: NSViewRepresentable {
-    let html: String
-    let baseURL: URL?
+    /// Rendered HTML for the markdown path. Ignored when `directFileURL` is set.
+    var html: String = ""
+    /// Base directory for the markdown path (relative-resource access).
+    var baseURL: URL? = nil
+    /// When set, load this file straight from disk (raw .html viewing), with read
+    /// access scoped to its containing directory so relative resources resolve.
+    var directFileURL: URL? = nil
+    /// Cmd+R counter; a change forces a reload in the direct-file path.
+    var reloadToken: Int = 0
 
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
@@ -55,15 +81,31 @@ struct WebViewRepresentable: NSViewRepresentable {
     }
 
     func updateNSView(_ webView: WKWebView, context: Context) {
-        if html != context.coordinator.lastHTML || baseURL != context.coordinator.lastBaseURL {
-            context.coordinator.lastHTML = html
-            context.coordinator.lastBaseURL = baseURL
+        let coord = context.coordinator
+        if directFileURL != nil {
+            if directFileURL != coord.lastDirectURL || reloadToken != coord.lastReloadToken {
+                coord.lastDirectURL = directFileURL
+                coord.lastReloadToken = reloadToken
+                loadContent(webView, context: context)
+            }
+            return
+        }
+        if html != coord.lastHTML || baseURL != coord.lastBaseURL {
+            coord.lastHTML = html
+            coord.lastBaseURL = baseURL
             loadContent(webView, context: context)
         }
     }
 
-    /// Load HTML via a per-window temp file so WKWebView can access local images.
+    /// Load content: raw file directly for .html, otherwise via a per-window temp
+    /// file so WKWebView can access local images referenced by rendered markdown.
     private func loadContent(_ webView: WKWebView, context: Context) {
+        if let directFileURL {
+            let dir = directFileURL.deletingLastPathComponent()
+            webView.loadFileURL(directFileURL, allowingReadAccessTo: dir)
+            return
+        }
+
         guard let baseURL = baseURL else {
             webView.loadHTMLString(html, baseURL: nil)
             return
@@ -98,6 +140,8 @@ struct WebViewRepresentable: NSViewRepresentable {
         let id = UUID()
         var lastHTML: String = ""
         var lastBaseURL: URL?
+        var lastDirectURL: URL?
+        var lastReloadToken: Int = -1
         var tempFileURL: URL?
 
         deinit {

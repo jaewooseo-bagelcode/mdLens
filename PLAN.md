@@ -5,11 +5,9 @@ Slack에서 `.html`/`.md`에 **👀(:eyes:) reaction → mdLens가 파일을 받
 검증 끝난 데몬 코드(`_slack_integration/slackhtml-src/`)를 이식한다. 토큰은 **Keychain**(바이너리 임베드 0).
 
 ## Current
-- [ ] **라이브 Slack 검증 (사용자 수동)** — 공증본(`mdLens.app`) → 앱메뉴 "Connect Slack…" → 매니페스트로 앱 생성 → xapp-/xoxp- 입력 → 메뉴바 👀 등장 → Slack에서 `.html`/`.md`에 👀 → mdLens 창 열림 확인. (실토큰 필요 → 에이전트 대행 불가)
-- [ ] **릴리스 발행 (선택)** — `gh release create build-10693c2 --repo jaewooseo-bagelcode/mdLens --title build-10693c2 --notes "Build 10693c2" /tmp/mdLens-build-10693c2-arm64.zip` (공증본 == 현재 main tip). 발행 시 기존 사용자 자동업데이트 수신.
-
-## Backlog
-- **Quick Look 확장** — Finder 스페이스바 `.md` 미리보기. PR #1(closed, stale) 참고: WKWebView는 QL ViewBridge에서 렌더 불가 → NSTextView+NSAttributedString. 현재 main 위에서 재구현 필요. 참고 브랜치 `feature/quicklook-nstextview`.
+- [ ] **QL 풀-렌더 시각 확인 (사용자 수동, 1스텝)** — Finder에서 `.md` 선택→스페이스바. highlight.js 색·표·체크박스까지 보이면 OK. (구현·서명·임베드·JS실행 검증은 끝, 최종 리치 렌더 스크린샷만 화면 잠금으로 미캡처)
+- [ ] **라이브 Slack 검증 (사용자 수동)** — 앱메뉴 "Connect Slack…" → 매니페스트 앱 생성 → xapp-/xoxp- 입력 → 메뉴바 👀 → Slack `.html`/`.md`에 👀 → 창 열림. (실토큰 필요 → 대행 불가)
+- [ ] **릴리스 발행 (선택)** — QL 포함 새 빌드로 `build-release.sh` 재실행 후 `gh release create build-<hash> … /tmp/mdLens-build-<hash>-arm64.zip`. (이전 `build-10693c2`는 QL 미포함)
 
 ## Blocked
 - (없음) — 토큰/앱/서명 인증서 모두 확보됨
@@ -23,6 +21,7 @@ Phase 1-6 완료 (커밋 7dea980 `.html` 뷰어, 10693c2 Slack 통합 → main):
 - **서명/공증**: `build-release.sh` → 공증 **Accepted** + 스테이플 (`build-10693c2`, `spctl` Notarized). `build-app.sh <suffix>`로 dev 격리 빌드.
 - **정리**: 구 `markdown-viewer`·`slack-html` → `~/git/.archived/`, `_slack_integration/` 삭제.
 - **베이스**(이전): DocumentGroup 전환 + 자동업데이터. 상세는 git history.
+- **Quick Look 확장**(커밋 8dbc327): `.md`/`.html` Finder 미리보기. `MarkdownCore` 공유 모듈 분리 후 `mdLensQL.appex`가 WKWebView+MarkdownRenderer로 풀 충실도 렌더. **핵심 발견: QL 확장 WKWebView에서 JS 실행됨**(최소 3 entitlement 한정; JIT/lib entitlement 추가 시 깨짐). PR #1의 NSTextView 우회 폐기.
 
 ## Decisions
 | 항목 | 결정 | 이유 |

@@ -3,6 +3,7 @@ import UniformTypeIdentifiers
 
 struct AppCommands: Commands {
     @FocusedValue(\.reloadAction) private var reloadAction
+    @Environment(\.openWindow) private var openWindow
 
     var body: some Commands {
         // DocumentGroup supplies New / Open / Open Recent natively.
@@ -18,6 +19,10 @@ struct AppCommands: Commands {
             Divider()
             Button("Set as Default App for .md Files") {
                 DefaultAppHelper.setAsDefault()
+            }
+            Button("Connect Slack…") {
+                openWindow(id: slackSetupWindowID)
+                NSApp.activate(ignoringOtherApps: true)
             }
         }
     }

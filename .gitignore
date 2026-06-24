@@ -5,6 +5,8 @@
 .scs/
 .claude/
 mdLens.app/
+mdLens-*.app/
 MarkdownViewer.app/
 *.zip
 docs/research/**/.raw/
+_slack_integration/

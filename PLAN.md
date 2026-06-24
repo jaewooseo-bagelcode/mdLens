@@ -1,29 +1,54 @@
-# PLAN — mdLens DocumentGroup 전환
+# PLAN — mdLens × Slack 👀 인입 통합
 
-멀티윈도우 상태 공유 버그(마지막 open이 전체 덮어씀) + 다중 파일 오픈 미처리를
-공유 `AppState` 싱글톤 제거 = DocumentGroup 전면 전환으로 구조적으로 해결.
-사이드바/폴더/아웃라인/퀵오픈은 미사용이라 영구 삭제.
+mdLens(마크다운 뷰어)에 ① `.html` 뷰어와 ② opt-in Slack Socket Mode 리스너를 통합한다.
+Slack에서 `.html`/`.md`에 **👀(:eyes:) reaction → mdLens가 파일을 받아 자기 창에 렌더**.
+검증 끝난 데몬 코드(`_slack_integration/slackhtml-src/`)를 이식한다. 토큰은 **Keychain**(바이너리 임베드 0).
 
 ## Current
-- [ ] (선택) 드래그-투-오픈 복원 결정 — 구 onDrop 회귀. 복원 시 직접 드롭 테스트 필요
+- [x] **`.html` 뷰어** — `readableContentTypes`에 `.html` + Info.plist(Resources/) 문서타입 추가. `DocumentView`가 `.html`은 파이프라인 우회, 실제 파일을 `loadFileURL`(base=파일 폴더). **런타임 검증 완료**(자체 CSS/JS/상대리소스 렌더).
+- [x] **Slack 코드 이식** — `Sources/MarkdownViewer/Slack/{SlackAPI,SocketMode,Keychain,ManifestService,SlackConfig}`. Keychain service = bundle id 기반(dev/release 격리·프롬프트 0). AppDelegate/main/ViewerResolver 버림.
+- [x] **MenuBarExtra (opt-in)** — `SlackController`(shared, 런치 시 `startIfConfigured`). 토큰 있으면 `isActive`→메뉴바 상주+Socket Mode; 없으면 메뉴바 숨김(백그라운드 0, **검증됨**). 👀→다운로드→`NSWorkspace.open(withApplicationAt: 자기번들)`로 새 문서 창.
+- [x] **Setup UI** — `SlackSetupView` Window(`slack-setup`) + 앱메뉴 "Connect Slack…". 매니페스트 딥링크·토큰 2개 라이브검증·Keychain 저장·리스너 시작. **창 렌더 검증 완료**.
+- [ ] **서명/공증** — `scripts/build-app.sh`(로컬, suffix 인자로 dev 격리 빌드 지원) 검증 완료. `scripts/build-release.sh`(해시주입+공증) 실행은 **커밋 후**. 릴리스 발행은 main 머지 후.
+- [ ] **정리** — 이식·검증 완료 후 `~/git/markdown-viewer`·`~/git/slack-html` → `~/git/.archived` 이동 + `_slack_integration/` 삭제 (**파괴적 → 사용자 승인 대기**)
 
 ## Blocked
-- (없음)
+- (없음) — 토큰/앱/서명 인증서 모두 확보됨
 
 ## Done (압축)
-- DocumentGroup 전면 전환(f3898e6): 단일 `AppState` 공유가 근본원인 → 문서당 독립 scene. `MarkdownFileDocument`+`AppSettings`(UserDefaults 영속) 신설, `DocumentView` 루트, 13개 파일 삭제. 다중 파일→독립 창 실증 = Bug1·2(마지막 open 덮어씀/다중오픈) 해결. /verify 50/60 후속(Reload `focusedSceneValue` 등). 릴리스 build-afefc12.
-- 자동 업데이터 견고화(ffe7b20): 구 "창 닫힘 시 self-swap"이 Cmd+Q 레이스로 미설치됨 → /deep-research(53/60, `docs/research/macos-self-update-patterns/`)로 Sparkle 5원칙 도출 → `Updater.swift` 재작성(실행 시 스테이징 + 다음 실행에 detached helper가 PID 종료 대기→atomic swap→relaunch + 서명/TeamID 검증). 릴리스 build-ffe7b20 → 부트스트랩 swap으로 설치 확인(현재 설치=Latest=ffe7b20). 이후 자동 업데이트 자립.
-- 실사용 확인: 멀티윈도우 독립성·자동 업데이트 사용자 확인 완료.
-- md/파일 링크 클릭 동작: `visitLink`이 상대·절대·~ 경로를 절대 `file://`로 해석(앵커/http/mailto는 보존), WebView에 nav delegate 추가(.md→mdLens 새 창, 기타 파일/웹→기본 앱, #앵커→스크롤). 근본원인=링크 destination 미해석 + nav delegate 부재. end-to-end 실증(절대경로 56링크 깨끗 렌더).
+- **mdLens 베이스**(이전 작업, git history 참조): DocumentGroup 전면전환 + homegrown 자동업데이터. 안정·실사용 검증.
+- **Slack 데몬**(구 `~/git/slack-html`, **라이브 검증 완료** → 이식 대상):
+  - Socket Mode 👀 → `files:read` 다운로드 (실토큰 라이브, MDAK 메시지로 검증)
+  - 매니페스트 딥링크 자가앱생성 / Keychain 저장 / `setup` CLI
+  - **서명된 .app에서 Keychain 쓰기·읽기 프롬프트 0 (OSStatus 0)** — 서명이 ACL 해결
+  - ViewerResolver → mdLens 실행 검증 (통합 후엔 자기 창이라 불필요)
+
+## 이식 가이드 (port map)
+| 원본 `_slack_integration/slackhtml-src/` | mdLens 행선지 | 비고 |
+|---|---|---|
+| `SlackAPI.swift` | `Sources/MarkdownViewer/Slack/` | 그대로 (Sendable) |
+| `SocketMode.swift` | 〃 | 그대로 (@MainActor, 자동재연결) |
+| `Keychain.swift` | 〃 | service id 유지/조정 |
+| `ManifestService.swift` | 〃 | 매니페스트 그대로 |
+| `Config.swift` | 일부 | Keychain resolve 로직만 |
+| `Setup.swift` | → SwiftUI "Connect Slack" 뷰 | CLI→UI 각색 |
+| `AppDelegate/main/ViewerResolver` | **버림** | mdLens 앱 생명주기/MenuBarExtra로 대체, 자기 창에 직접 엶 |
 
 ## Decisions
 | 항목 | 결정 | 이유 |
 |------|------|------|
-| 아키텍처 | DocumentGroup(viewing:) 전면 전환 | 문서당 독립 scene → 공유상태 버그 구조적 소멸, 다중오픈 OS가 처리, 코드 ~40%↓ |
-| 사이드바/폴더/아웃라인/퀵오픈 | 영구 삭제 | 사용자 미사용 확정. 워크스페이스 모델이 DocumentGroup과 충돌 |
-| theme/fontSize | 공유 `@Observable AppSettings`(UserDefaults 영속) | 창 간 공유가 의도된 설정값. 덤으로 기존 미영속 버그 해결 |
-| 파일 URL | `FileDocumentConfiguration.fileURL` | WKWebView 상대경로 이미지 baseURL용. 문서 확인 완료, PoC로 실증 |
-| Reload | @FocusedValue로 포커스 창 fileURL 재읽기 | FileDocument는 외부 변경 자동반영 안함. 창별 수동 Cmd+R 유지 |
-| 라이브 와처 | 도입 안함 | 현재도 없음(f7998d2에서 FileWatcher 삭제됨). 범위 밖 |
-| 업데이터 | homegrown 수정(스테이징+detached helper), Sparkle 미채택 | silent 디자인·commit-hash 스킴 유지, SwiftPM 수동번들에 Sparkle 임베드/서명 복잡. Sparkle 5원칙은 복제 |
-| 업데이트 적용 시점 | 종료 시(detached helper)가 아니라 "다운로드 다음 실행에 스테이징분 적용" | 종료 레이스 회피. helper가 PID 종료 polling → atomic swap → relaunch |
+| 통합 | 데몬을 mdLens로 흡수, **단일 앱** | 토큰=Keychain이라 배포 누출 0 → 두 앱 유지 이유 소멸 |
+| opt-in | Slack 미설정 시 기존 뷰어 그대로(상주 0) | 순수 뷰어 사용자 영향 0 |
+| 이벤트 | per-user **BYO-app + Socket Mode** | 즉시성·무서버. 공유앱 Socket Mode는 로드밸런싱으로 불가 |
+| 토큰 | **Keychain** (임베드 폐기) | 동료 배포형 → 바이너리에 비밀 0 |
+| 서명 | `Developer ID Application: Sugarscone (5FK7UUGMX3)` | Keychain ACL 안정 + Gatekeeper. 기존 mdLens 인프라 |
+| 뷰어 핸드오프 | 없음(자기 창에 직접) | mdLens가 곧 뷰어 |
+| 매니페스트 | `user_events: reaction_added` + user scopes + socket_mode | user-token만으로 동작(봇 불필요·봇초대 불요) |
+| Keychain service | `Bundle.main.bundleIdentifier` 기반(하드코딩 폐기) | dev(`…mdlens.dev`)·release 토큰 격리 + 자기앱이 생성·읽기 → ACL 프롬프트 0 보장 |
+| dev 빌드 격리 | `build-app.sh <suffix>` → `mdLens-<suffix>.app`/`…mdlens.<suffix>` | 설치된 release와 bundle id 충돌(이중 인스턴스) 방지 |
+
+## ⚠️ Gotchas (반드시 숙지)
+- **`pkill -f <패턴>` 절대 금지** — 실행 셸(`sh -c "...pkill -f X..."`)의 명령줄에 패턴이 들어가 **자기 셸을 죽임**(맥락 끊김의 원인이었음). 프로세스 정리는 **기록한 정확한 PID만** `kill "$(cat ….pid)"`.
+- Keychain ACL은 **서명된 바이너리**라야 프롬프트 없이 됨(unsigned = OSStatus **-128**). 개발 중 setup·앱 모두 서명본으로 테스트.
+- `AGENTS.md` 규칙: `main` 보호, **`dev`에서 작업·PR로 머지**, 파괴적 git은 사용자 승인.
+- 토큰은 채팅에 평문 노출됐었음 → 배포 전 한 번 **회전(reinstall)** 권장.

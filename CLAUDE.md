@@ -4,6 +4,15 @@
 macOS native markdown viewer built with SwiftUI + WKWebView + swift-markdown.
 SwiftPM project (no Xcode project file).
 
+## ▶ Active Project — Slack 👀 ingestion (see PLAN.md)
+Integrating a verified Slack daemon into mdLens so reacting 👀 on a Slack `.html`/`.md`
+opens it in mdLens. **PLAN.md is the SSOT.** Verified daemon source to port lives in
+`_slack_integration/slackhtml-src/` (gitignored staging). Key facts:
+- Add `.html` viewing + an **opt-in** MenuBarExtra Socket Mode listener (no tokens → stays a pure viewer).
+- Tokens in **Keychain** (never embedded). Signing identity `Developer ID Application: Sugarscone (5FK7UUGMX3)` makes Keychain ACL prompt-free.
+- ⚠️ **Never use `pkill -f <pat>`** — it matches and kills the executing shell. Kill only recorded PIDs.
+- Work on **`dev`** branch per AGENTS.md; PR to `main`.
+
 ## Build & Run
 
 ```bash
@@ -51,7 +60,11 @@ Key invariants agents must preserve:
 
 ### Key Design Decisions
 - **loadFileURL** instead of loadHTMLString: WKWebView needs file:// access for local images
-- Image paths resolved to absolute `file://` URLs in HTMLVisitor
+- Image paths resolved to absolute `file://` URLs in HTMLVisitor; link hrefs likewise
+  resolved in `visitLink` (relative→doc dir, absolute `/` & `~` direct, `#`/http/mailto kept)
+- Link clicks routed by `WebViewRepresentable`'s `WKNavigationDelegate`: `.md` files open in
+  a new window (open-with-this-app → DocumentGroup), other files/web URLs open externally,
+  same-document `#anchors` scroll
 - Temp HTML written per-window to `/tmp/mdlens/preview-<uuid>.html`, `allowingReadAccessTo: /` (UUID avoids multi-window clobber)
 - Dangerous HTML tags (script, iframe, etc.) sanitized in visitHTMLBlock/visitInlineHTML
 

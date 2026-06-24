@@ -5,34 +5,24 @@ Slack에서 `.html`/`.md`에 **👀(:eyes:) reaction → mdLens가 파일을 받
 검증 끝난 데몬 코드(`_slack_integration/slackhtml-src/`)를 이식한다. 토큰은 **Keychain**(바이너리 임베드 0).
 
 ## Current
-- [x] **`.html` 뷰어** — `readableContentTypes`에 `.html` + Info.plist(Resources/) 문서타입 추가. `DocumentView`가 `.html`은 파이프라인 우회, 실제 파일을 `loadFileURL`(base=파일 폴더). **런타임 검증 완료**(자체 CSS/JS/상대리소스 렌더).
-- [x] **Slack 코드 이식** — `Sources/MarkdownViewer/Slack/{SlackAPI,SocketMode,Keychain,ManifestService,SlackConfig}`. Keychain service = bundle id 기반(dev/release 격리·프롬프트 0). AppDelegate/main/ViewerResolver 버림.
-- [x] **MenuBarExtra (opt-in)** — `SlackController`(shared, 런치 시 `startIfConfigured`). 토큰 있으면 `isActive`→메뉴바 상주+Socket Mode; 없으면 메뉴바 숨김(백그라운드 0, **검증됨**). 👀→다운로드→`NSWorkspace.open(withApplicationAt: 자기번들)`로 새 문서 창.
-- [x] **Setup UI** — `SlackSetupView` Window(`slack-setup`) + 앱메뉴 "Connect Slack…". 매니페스트 딥링크·토큰 2개 라이브검증·Keychain 저장·리스너 시작. **창 렌더 검증 완료**.
-- [ ] **서명/공증** — `scripts/build-app.sh`(로컬, suffix 인자로 dev 격리 빌드 지원) 검증 완료. `scripts/build-release.sh`(해시주입+공증) 실행은 **커밋 후**. 릴리스 발행은 main 머지 후.
-- [ ] **정리** — 이식·검증 완료 후 `~/git/markdown-viewer`·`~/git/slack-html` → `~/git/.archived` 이동 + `_slack_integration/` 삭제 (**파괴적 → 사용자 승인 대기**)
+- [ ] **라이브 Slack 검증 (사용자 수동)** — 공증본(`mdLens.app`) → 앱메뉴 "Connect Slack…" → 매니페스트로 앱 생성 → xapp-/xoxp- 입력 → 메뉴바 👀 등장 → Slack에서 `.html`/`.md`에 👀 → mdLens 창 열림 확인. (실토큰 필요 → 에이전트 대행 불가)
+- [ ] **릴리스 발행 (선택)** — `gh release create build-10693c2 --repo jaewooseo-bagelcode/mdLens --title build-10693c2 --notes "Build 10693c2" /tmp/mdLens-build-10693c2-arm64.zip` (공증본 == 현재 main tip). 발행 시 기존 사용자 자동업데이트 수신.
+
+## Backlog
+- **Quick Look 확장** — Finder 스페이스바 `.md` 미리보기. PR #1(closed, stale) 참고: WKWebView는 QL ViewBridge에서 렌더 불가 → NSTextView+NSAttributedString. 현재 main 위에서 재구현 필요. 참고 브랜치 `feature/quicklook-nstextview`.
 
 ## Blocked
 - (없음) — 토큰/앱/서명 인증서 모두 확보됨
 
 ## Done (압축)
-- **mdLens 베이스**(이전 작업, git history 참조): DocumentGroup 전면전환 + homegrown 자동업데이터. 안정·실사용 검증.
-- **Slack 데몬**(구 `~/git/slack-html`, **라이브 검증 완료** → 이식 대상):
-  - Socket Mode 👀 → `files:read` 다운로드 (실토큰 라이브, MDAK 메시지로 검증)
-  - 매니페스트 딥링크 자가앱생성 / Keychain 저장 / `setup` CLI
-  - **서명된 .app에서 Keychain 쓰기·읽기 프롬프트 0 (OSStatus 0)** — 서명이 ACL 해결
-  - ViewerResolver → mdLens 실행 검증 (통합 후엔 자기 창이라 불필요)
-
-## 이식 가이드 (port map)
-| 원본 `_slack_integration/slackhtml-src/` | mdLens 행선지 | 비고 |
-|---|---|---|
-| `SlackAPI.swift` | `Sources/MarkdownViewer/Slack/` | 그대로 (Sendable) |
-| `SocketMode.swift` | 〃 | 그대로 (@MainActor, 자동재연결) |
-| `Keychain.swift` | 〃 | service id 유지/조정 |
-| `ManifestService.swift` | 〃 | 매니페스트 그대로 |
-| `Config.swift` | 일부 | Keychain resolve 로직만 |
-| `Setup.swift` | → SwiftUI "Connect Slack" 뷰 | CLI→UI 각색 |
-| `AppDelegate/main/ViewerResolver` | **버림** | mdLens 앱 생명주기/MenuBarExtra로 대체, 자기 창에 직접 엶 |
+Phase 1-6 완료 (커밋 7dea980 `.html` 뷰어, 10693c2 Slack 통합 → main):
+- **`.html` 뷰어**: `loadFileURL` 직접 로드(파이프라인 우회). 런타임 검증.
+- **Slack 이식**: `Sources/MarkdownViewer/Slack/{SlackAPI,SocketMode,Keychain,ManifestService,SlackConfig}`. AppDelegate/main/ViewerResolver는 `SlackController`/`SlackSetupView`로 재구현.
+- **MenuBarExtra opt-in**: `SlackController.shared` 런치 시 `startIfConfigured`. 미설정=메뉴바 숨김(백그라운드 0, 검증). 👀→다운로드→자기 번들로 새 창.
+- **Setup UI**: `SlackSetupView` Window + 앱메뉴 진입. 라이브검증·Keychain 저장. 창 렌더 검증.
+- **서명/공증**: `build-release.sh` → 공증 **Accepted** + 스테이플 (`build-10693c2`, `spctl` Notarized). `build-app.sh <suffix>`로 dev 격리 빌드.
+- **정리**: 구 `markdown-viewer`·`slack-html` → `~/git/.archived/`, `_slack_integration/` 삭제.
+- **베이스**(이전): DocumentGroup 전환 + 자동업데이터. 상세는 git history.
 
 ## Decisions
 | 항목 | 결정 | 이유 |

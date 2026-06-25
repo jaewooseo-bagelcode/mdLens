@@ -9,6 +9,8 @@ final class SocketModeClient {
     private let api: SlackAPI
     private let onReaction: @Sendable (Reaction) -> Void
     private var running = false
+    private var connectTask: Task<Void, Never>?
+    private var webSocketTask: URLSessionWebSocketTask?
 
     init(api: SlackAPI, onReaction: @escaping @Sendable (Reaction) -> Void) {
         self.api = api
@@ -17,10 +19,19 @@ final class SocketModeClient {
 
     func start() {
         running = true
-        Task { await connectLoop() }
+        connectTask = Task { await connectLoop() }
     }
 
-    func stop() { running = false }
+    /// Stop and tear down: cancel the in-flight `receive()` so no further message
+    /// is processed after the listener is reported stopped (prevents duplicate
+    /// downloads on disconnect/reconnect).
+    func stop() {
+        running = false
+        webSocketTask?.cancel(with: .goingAway, reason: nil)
+        webSocketTask = nil
+        connectTask?.cancel()
+        connectTask = nil
+    }
 
     private func log(_ s: String) {
         FileHandle.standardError.write(Data("[socket] \(s)\n".utf8))
@@ -42,11 +53,15 @@ final class SocketModeClient {
     private func runConnection(url: URL) async throws {
         let session = URLSession(configuration: .default)
         let task = session.webSocketTask(with: url)
+        webSocketTask = task
         task.resume()
-        defer { task.cancel(with: .goingAway, reason: nil) }
+        defer {
+            task.cancel(with: .goingAway, reason: nil)
+            if webSocketTask === task { webSocketTask = nil }
+        }
 
-        while running {
-            let message = try await task.receive() // throws on close → reconnect
+        while running && !Task.isCancelled {
+            let message = try await task.receive() // throws on close/cancel → reconnect
             let text: String
             switch message {
             case .string(let s): text = s

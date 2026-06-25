@@ -12,8 +12,16 @@ import MarkdownCore
 class PreviewViewController: NSViewController, QLPreviewingController {
 
     private var webView: WKWebView!
+    /// Temp HTML written for the markdown path; cleaned up on the next preview/deinit.
+    private var tempPreviewURL: URL?
 
     override var nibName: NSNib.Name? { nil }
+
+    deinit {
+        if let tempPreviewURL {
+            try? FileManager.default.removeItem(at: tempPreviewURL)
+        }
+    }
 
     override func loadView() {
         let config = WKWebViewConfiguration()
@@ -47,9 +55,11 @@ class PreviewViewController: NSViewController, QLPreviewingController {
                 ?? String(data: data, encoding: .isoLatin1)
                 ?? ""
             let html = MarkdownRenderer.renderHTML(from: text, baseURL: dir, theme: .auto, fontSize: 16)
+            if let old = tempPreviewURL { try? FileManager.default.removeItem(at: old) }
             let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
                 .appendingPathComponent("mdlens-ql-\(UUID().uuidString).html")
             try html.write(to: tmp, atomically: true, encoding: .utf8)
+            tempPreviewURL = tmp
             // Broad read scope so the document's absolute file:// images load too.
             webView.loadFileURL(tmp, allowingReadAccessTo: URL(fileURLWithPath: "/"))
             handler(nil)

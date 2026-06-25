@@ -5,12 +5,14 @@ struct SlackFile: Sendable {
     let name: String
     let downloadURL: String
     let filetype: String
+    let size: Int   // bytes as reported by Slack; 0 when unknown
 
     init?(json f: [String: Any]) {
         guard let url = (f["url_private_download"] as? String) ?? (f["url_private"] as? String) else { return nil }
         self.name = (f["name"] as? String) ?? "document.html"
         self.downloadURL = url
         self.filetype = (f["filetype"] as? String) ?? ""
+        self.size = (f["size"] as? Int) ?? 0
     }
 
     var isRenderable: Bool {
@@ -25,7 +27,10 @@ struct SlackAPI: Sendable {
     let webToken: String   // user (xoxp-) or bot (xoxb-) token for Web API calls
     let appToken: String   // app-level (xapp-) token for Socket Mode
 
-    enum APIError: Error { case http(Int), notOK(String), badResponse }
+    enum APIError: Error { case http(Int), notOK(String), badResponse, tooLarge(Int) }
+
+    /// Hard cap for an ingested document — these are markdown/HTML, not media.
+    static let maxDownloadBytes = 25_000_000 // 25MB
 
     // MARK: Generic POST (application/x-www-form-urlencoded)
 
@@ -96,19 +101,29 @@ struct SlackAPI: Sendable {
         return parseFiles(match)
     }
 
-    /// Downloads a file's private content to a temp file and returns its local URL.
+    /// Streams a file's private content to a temp file (no full in-memory buffer)
+    /// and returns its local URL, rejecting anything over `maxDownloadBytes`.
     func download(file: SlackFile) async throws -> URL {
+        if file.size > Self.maxDownloadBytes { throw APIError.tooLarge(file.size) }
         guard let url = URL(string: file.downloadURL) else { throw APIError.badResponse }
         var req = URLRequest(url: url)
         req.setValue("Bearer \(webToken)", forHTTPHeaderField: "Authorization")
-        let (data, resp) = try await URLSession.shared.data(for: req)
+        let (tempURL, resp) = try await URLSession.shared.download(for: req)
         guard let http = resp as? HTTPURLResponse, http.statusCode == 200 else {
+            try? FileManager.default.removeItem(at: tempURL)
             throw APIError.http((resp as? HTTPURLResponse)?.statusCode ?? -1)
+        }
+        // Slack may omit size in the message event — enforce it post-download too.
+        let downloaded = (try? FileManager.default.attributesOfItem(atPath: tempURL.path)[.size] as? Int) ?? 0
+        if downloaded > Self.maxDownloadBytes {
+            try? FileManager.default.removeItem(at: tempURL)
+            throw APIError.tooLarge(downloaded)
         }
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("mdlens-slack", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let out = dir.appendingPathComponent("\(UUID().uuidString)-\(file.name)")
-        try data.write(to: out)
+        try? FileManager.default.removeItem(at: out)
+        try FileManager.default.moveItem(at: tempURL, to: out)
         return out
     }
 }

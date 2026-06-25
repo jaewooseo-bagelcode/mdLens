@@ -39,6 +39,11 @@ echo "[1/6] Building release binary..."
 swift build -c release
 
 echo "[2/6] Updating app bundle..."
+# Refresh static bundle contents from source so a stale/missing checked-out
+# mdLens.app can't ship outdated metadata or resources (self-contained).
+mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources"
+cp "$PROJECT_DIR/Resources/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
+cp "$PROJECT_DIR/Resources/AppIcon.icns" "$APP_BUNDLE/Contents/Resources/"
 cp "$BINARY" "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 plutil -replace CFBundleShortVersionString -string "$HASH" "$APP_BUNDLE/Contents/Info.plist"
 plutil -replace CFBundleVersion -string "$HASH" "$APP_BUNDLE/Contents/Info.plist"

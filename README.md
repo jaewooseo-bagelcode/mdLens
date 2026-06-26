@@ -99,21 +99,27 @@ still be Developer ID signed but Gatekeeper will warn on first launch.
 ## Source map
 
 ```
-Sources/MarkdownViewer/
-├── App/           MarkdownViewerApp (DocumentGroup), AppSettings, AppCommands, FocusedValues
-├── Models/        MarkdownFileDocument (read-only FileDocument)
-├── Services/      MarkdownRenderer, EmojiMap, DocumentStats,
-│                  BuildInfo (generated), Updater
-├── Views/         DocumentView (root), StatusBarView, SettingsView
-├── Theme/         AppTheme
-└── Extensions/    String+Extensions (htmlEscaped, slugified, SlugGenerator)
+Sources/
+├── MarkdownCore/        shared lib: MarkdownRenderer, EmojiMap, AppThemeMode,
+│                        String+Extensions — used by BOTH the app and the QL extension
+├── MarkdownViewer/      app executable (target `mdLens`)
+│   ├── App/             MarkdownViewerApp (DocumentGroup), AppSettings, AppCommands, FocusedValues
+│   ├── Models/          MarkdownFileDocument (read-only FileDocument; .md + .html)
+│   ├── Services/        DocumentStats, BuildInfo (generated), Updater
+│   ├── Slack/           opt-in 👀 ingestion: SlackController, SocketModeClient, SlackAPI,
+│   │                    Keychain, ManifestService, SlackConfig, SlackSetupView, SlackMenuView
+│   └── Views/           DocumentView (root + raw-.html path), StatusBarView, SettingsView
+└── QuickLookExtension/  the `mdLensQL.appex` (QLPreviewingController + WKWebView via MarkdownCore)
 ```
+
+Three SwiftPM targets: `MarkdownCore` (lib), `mdLens` (app), `mdLensQL` (Quick Look `.appex`,
+embedded + separately signed by the build scripts).
 
 The app is a `DocumentGroup(viewing:)` — one window per file, independent per-window state,
 no shared document singleton. `AppSettings` (@Observable, UserDefaults-backed) holds the only
 cross-window state (theme, fontSize).
 
-Rendering pipeline is in `MarkdownRenderer.swift`: front matter extraction → link/emoji
+Rendering pipeline is in `MarkdownCore/MarkdownRenderer.swift`: front matter extraction → link/emoji
 preprocess → swift-markdown AST → custom `HTMLVisitor` → HTML wrapped with CSS, KaTeX,
 Mermaid, highlight.js (all CDN, loaded only when features are detected).
 

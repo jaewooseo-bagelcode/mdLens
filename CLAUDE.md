@@ -4,14 +4,21 @@
 macOS native markdown viewer built with SwiftUI + WKWebView + swift-markdown.
 SwiftPM project (no Xcode project file).
 
-## ▶ Active Project — Slack 👀 ingestion (see PLAN.md)
-Integrating a verified Slack daemon into mdLens so reacting 👀 on a Slack `.html`/`.md`
-opens it in mdLens. **PLAN.md is the SSOT.** Verified daemon source to port lives in
-`_slack_integration/slackhtml-src/` (gitignored staging). Key facts:
-- Add `.html` viewing + an **opt-in** MenuBarExtra Socket Mode listener (no tokens → stays a pure viewer).
-- Tokens in **Keychain** (never embedded). Signing identity `Developer ID Application: Sugarscone (5FK7UUGMX3)` makes Keychain ACL prompt-free.
-- ⚠️ **Never use `pkill -f <pat>`** — it matches and kills the executing shell. Kill only recorded PIDs.
-- Work on **`dev`** branch per AGENTS.md; PR to `main`.
+## Features (PLAN.md is the SSOT for in-flight work)
+Viewers: rendered Markdown (swift-markdown → WKWebView) and raw `.html` (loaded directly,
+pipeline bypassed). Two optional add-ons, both shipped:
+- **Quick Look extension** (`Sources/QuickLookExtension` → `mdLensQL.appex`): Finder spacebar /
+  preview-pane renders `.md`/`.html` via the shared `MarkdownCore`, full fidelity. JavaScript
+  **runs** in the QL WebContent process — only with the minimal sandbox entitlements; adding
+  JIT/library entitlements breaks it (see memory `quicklook-extension-wkwebview-js`).
+- **Opt-in Slack 👀 ingestion** (`Sources/MarkdownViewer/Slack`): with Keychain tokens, a
+  MenuBarExtra runs a Socket Mode listener; reacting 👀 on a Slack `.html`/`.md` downloads it
+  into a new mdLens window. No tokens → pure viewer, zero background. Tokens in **Keychain**
+  (never embedded); per-user BYO Slack app, manifest name `mdLens (<user>-<id>)`. Signing
+  identity `Developer ID Application: Sugarscone (5FK7UUGMX3)` keeps Keychain ACL prompt-free.
+
+⚠️ **Never use `pkill -f <pat>`** — it matches and kills the executing shell. Kill only recorded PIDs.
+Work on `dev`; `main` is the protected release branch.
 
 ## Build & Run
 
@@ -37,6 +44,14 @@ Key invariants agents must preserve:
 - Never hand-edit `CFBundleShortVersionString`; the script sets it from `git HEAD`.
 
 ## Architecture
+
+### Package targets (3)
+- **`MarkdownCore`** (library) — shared rendering: `MarkdownRenderer`, `EmojiMap`, `AppThemeMode`,
+  `String+Extensions`. Public surface: `MarkdownRenderer.renderHTML`, `AppThemeMode`, `markdownExtensions`.
+  Depended on by both other targets.
+- **`mdLens`** (`Sources/MarkdownViewer`) — the SwiftUI app executable.
+- **`mdLensQL`** (`Sources/QuickLookExtension`) — the Quick Look preview `.appex`. `NSExtensionMain`
+  entry; signed with ONLY app-sandbox + files.user-selected.read-only + network.client.
 
 ### App Structure
 - **DocumentGroup(viewing: MarkdownFileDocument.self)** — read-only document app. Each open
@@ -68,12 +83,22 @@ Key invariants agents must preserve:
 - Temp HTML written per-window to `/tmp/mdlens/preview-<uuid>.html`, `allowingReadAccessTo: /` (UUID avoids multi-window clobber)
 - Dangerous HTML tags (script, iframe, etc.) sanitized in visitHTMLBlock/visitInlineHTML
 
-### Shared Utilities (String+Extensions.swift)
-- `extractPlainText(from:)` — recursive AST plain text extraction
-- `SlugGenerator` — heading ID generation (used by HTMLVisitor for heading anchors)
-- `markdownExtensions` — `Set<String>` of recognized extensions
-- `String.htmlEscaped` — HTML entity escaping
-- `String.slugified` — heading text → URL-safe slug
+### Raw .html & Quick Look
+- `MarkdownFileDocument.readableContentTypes` includes `.html`; `DocumentView` detects html and
+  uses `WebViewRepresentable(directFileURL:)` to `loadFileURL` the file directly (no markdown pipeline).
+- `mdLensQL.appex` (`PreviewViewController`): `.md` → `MarkdownRenderer` → temp file → `loadFileURL`;
+  `.html` → `loadFileURL` directly. Embedded + signed by `build-app.sh`/`build-release.sh` (app signed
+  WITHOUT `--deep` so the appex keeps its own entitlements).
+
+### Slack (Sources/MarkdownViewer/Slack)
+- `SlackController.shared` (started at launch via `startIfConfigured`) owns the opt-in lifecycle;
+  `isActive` drives `MenuBarExtra(isInserted:)`. `SocketModeClient` (@MainActor) → reaction → `SlackAPI`
+  download → open in a new window. `SlackSetupView` ("Connect Slack") writes tokens to `Keychain`
+  (service = `Bundle.main.bundleIdentifier`). `ManifestService` builds the BYO-app manifest deep link.
+
+### Shared utilities (Sources/MarkdownCore/String+Extensions.swift)
+- `extractPlainText(from:)`, `SlugGenerator` (heading anchors), `markdownExtensions` (public),
+  `String.htmlEscaped`, `String.slugified`.
 
 ## Conventions
 - All regexes cached as `static let` (no runtime compilation per render)

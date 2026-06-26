@@ -1,5 +1,20 @@
 # Changelog
 
+Releases are now tagged `build-<hash>` (see README). Entries below the semver ones use that scheme.
+
+## [build-e3a2834] - 2026-06-26
+
+### Added
+- Raw `.html` viewing — loaded directly in WKWebView, markdown pipeline bypassed
+- Quick Look preview extension (`mdLensQL.appex`) — Finder spacebar / preview-pane renders `.md`
+  and `.html` at full fidelity (highlight.js / KaTeX / Mermaid run inside the Quick Look host)
+- Opt-in Slack 👀 ingestion — react 👀 on a Slack `.html`/`.md` to download and open it in mdLens
+  (per-user Socket Mode listener; tokens stored in Keychain, never embedded)
+
+### Changed
+- Shared rendering extracted into a `MarkdownCore` module (used by the app and the QL extension)
+- Per-user Slack manifest app name is now unique: `mdLens (<user>-<id>)`
+
 ## [1.0.1] - 2026-03-03
 
 ### Fixed

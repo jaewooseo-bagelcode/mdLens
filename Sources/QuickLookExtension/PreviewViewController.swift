@@ -35,6 +35,13 @@ class PreviewViewController: NSViewController, QLPreviewingController {
     private static let maxFileSize = 10_000_000 // 10MB
 
     func preparePreviewOfFile(at url: URL, completionHandler handler: @escaping (Error?) -> Void) {
+        // Clean up any temp HTML from a prior preview on this controller, regardless
+        // of which branch this preview takes (md → html reuse leaves no leak).
+        if let old = tempPreviewURL {
+            try? FileManager.default.removeItem(at: old)
+            tempPreviewURL = nil
+        }
+
         let dir = url.deletingLastPathComponent()
         let ext = url.pathExtension.lowercased()
 
@@ -55,7 +62,6 @@ class PreviewViewController: NSViewController, QLPreviewingController {
                 ?? String(data: data, encoding: .isoLatin1)
                 ?? ""
             let html = MarkdownRenderer.renderHTML(from: text, baseURL: dir, theme: .auto, fontSize: 16)
-            if let old = tempPreviewURL { try? FileManager.default.removeItem(at: old) }
             let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
                 .appendingPathComponent("mdlens-ql-\(UUID().uuidString).html")
             try html.write(to: tmp, atomically: true, encoding: .utf8)

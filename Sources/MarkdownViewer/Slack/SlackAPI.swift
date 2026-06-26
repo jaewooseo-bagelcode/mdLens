@@ -121,9 +121,17 @@ struct SlackAPI: Sendable {
         }
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("mdlens-slack", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let out = dir.appendingPathComponent("\(UUID().uuidString)-\(file.name)")
-        try? FileManager.default.removeItem(at: out)
-        try FileManager.default.moveItem(at: tempURL, to: out)
+        // Reduce to a single path component so a crafted Slack filename can't add
+        // subdirs / traverse out of the temp dir.
+        let safeName = (file.name as NSString).lastPathComponent
+        let out = dir.appendingPathComponent("\(UUID().uuidString)-\(safeName.isEmpty ? "document" : safeName)")
+        do {
+            try? FileManager.default.removeItem(at: out)
+            try FileManager.default.moveItem(at: tempURL, to: out)
+        } catch {
+            try? FileManager.default.removeItem(at: tempURL)
+            throw error
+        }
         return out
     }
 }

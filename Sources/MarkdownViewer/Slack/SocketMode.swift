@@ -62,6 +62,9 @@ final class SocketModeClient {
 
         while running && !Task.isCancelled {
             let message = try await task.receive() // throws on close/cancel → reconnect
+            // A message may have arrived before stop() cancelled us; drop it so no
+            // reaction is dispatched after the listener is reported stopped.
+            guard running && !Task.isCancelled else { return }
             let text: String
             switch message {
             case .string(let s): text = s

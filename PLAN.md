@@ -5,9 +5,7 @@ Slack에서 `.html`/`.md`에 **👀(:eyes:) reaction → mdLens가 파일을 받
 검증 끝난 데몬 코드(`_slack_integration/slackhtml-src/`)를 이식한다. 토큰은 **Keychain**(바이너리 임베드 0).
 
 ## Current
-- [ ] **QL 풀-렌더 시각 확인 (사용자 수동, 1스텝)** — Finder에서 `.md` 선택→스페이스바. highlight.js 색·표·체크박스까지 보이면 OK. (구현·서명·임베드·JS실행 검증은 끝, 최종 리치 렌더 스크린샷만 화면 잠금으로 미캡처)
-- [ ] **라이브 Slack 검증 (사용자 수동)** — 앱메뉴 "Connect Slack…" → 매니페스트 앱 생성 → xapp-/xoxp- 입력 → 메뉴바 👀 → Slack `.html`/`.md`에 👀 → 창 열림. (실토큰 필요 → 대행 불가)
-- [ ] **릴리스 발행 (선택)** — QL 포함 새 빌드로 `build-release.sh` 재실행 후 `gh release create build-<hash> … /tmp/mdLens-build-<hash>-arm64.zip`. (이전 `build-10693c2`는 QL 미포함)
+- [ ] **라이브 Slack 검증 (사용자 수동, 유일 잔여)** — 앱메뉴 "Connect Slack…" → 매니페스트 앱 생성(이름 `mdLens (<user>-<id>)` 유니크) → xapp-/xoxp- 입력 → 메뉴바 👀 → Slack `.html`/`.md`에 👀 → 창 열림. (실토큰 필요 → 대행 불가). ⚠️ 노출됐던 토큰 회전 권장.
 
 ## Blocked
 - (없음) — 토큰/앱/서명 인증서 모두 확보됨
@@ -21,7 +19,10 @@ Phase 1-6 완료 (커밋 7dea980 `.html` 뷰어, 10693c2 Slack 통합 → main):
 - **서명/공증**: `build-release.sh` → 공증 **Accepted** + 스테이플 (`build-10693c2`, `spctl` Notarized). `build-app.sh <suffix>`로 dev 격리 빌드.
 - **정리**: 구 `markdown-viewer`·`slack-html` → `~/git/.archived/`, `_slack_integration/` 삭제.
 - **베이스**(이전): DocumentGroup 전환 + 자동업데이터. 상세는 git history.
-- **Quick Look 확장**(커밋 8dbc327): `.md`/`.html` Finder 미리보기. `MarkdownCore` 공유 모듈 분리 후 `mdLensQL.appex`가 WKWebView+MarkdownRenderer로 풀 충실도 렌더. **핵심 발견: QL 확장 WKWebView에서 JS 실행됨**(최소 3 entitlement 한정; JIT/lib entitlement 추가 시 깨짐). PR #1의 NSTextView 우회 폐기.
+- **Quick Look 확장**(커밋 8dbc327): `.md`/`.html` Finder 미리보기. `MarkdownCore` 공유 모듈 분리 후 `mdLensQL.appex`가 WKWebView+MarkdownRenderer로 풀 충실도 렌더. **핵심 발견: QL 확장 WKWebView에서 JS 실행됨**(최소 3 entitlement 한정; JIT/lib entitlement 추가 시 깨짐). PR #1의 NSTextView 우회 폐기. 사용자 시각 확인 완료.
+- **리뷰·하드닝**(6ba58b5, d4b2d87): verify×2 + codex×2 → SocketMode stop 취소·다운로드 25MB 캡·QL temp 정리·build-release 자기완결. Critical/High 0으로 수렴.
+- **Slack 앱 이름 유니크**(e3a2834): 매니페스트 `name`을 `mdLens (<로그인명>-<랜덤4hex>)`로(BYO-app 충돌 방지, 1회 생성·UserDefaults 고정).
+- **릴리스·배포**: `build-e3a2834` 공증+발행(latest), `/Applications` 설치(QL 등록), 로컬 자동업데이트 체크 = 최신 일치(무동작) 검증. commitHash 박힘도 Updater 행동으로 직접 확인.
 
 ## Decisions
 | 항목 | 결정 | 이유 |

@@ -83,7 +83,10 @@ final class SlackController {
         Task {
             do {
                 let files = try await api.filesForMessage(channel: r.channel, ts: r.ts)
-                for file in files where file.isRenderable {
+                let renderable = files.filter(\.isRenderable)
+                FileHandle.standardError.write(Data(
+                    "[slack] ts=\(r.ts): \(renderable.count)/\(files.count) renderable file(s) on the reacted message\n".utf8))
+                for file in renderable {
                     let local = try await api.download(file: file)
                     Self.openInNewWindow(local)
                 }

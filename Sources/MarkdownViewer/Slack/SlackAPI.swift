@@ -71,13 +71,27 @@ struct SlackAPI: Sendable {
         return id
     }
 
-    /// Fetches the message at (channel, ts) and returns its renderable files.
-    /// Tries conversations.history first (top-level messages), then conversations.replies (thread replies).
+    /// Returns the files attached to EXACTLY the message at (channel, ts) — never
+    /// any other message in the same thread.
+    ///
+    /// Targeting one message is subtle. The previous version used a zero-width
+    /// `oldest==latest` window plus a `?? messages.first` fallback, which could
+    /// surface a *different* thread message's files: reacting on a thread root whose
+    /// own attachment isn't renderable would open a reply's file. We now fetch with
+    /// the canonical single-message idiom (`latest=ts&limit=1&inclusive`) and, for
+    /// thread replies, match the exact `ts` with **no fallback**.
     func filesForMessage(channel: String, ts: String) async throws -> [SlackFile] {
-        if let files = try? await historyFiles(channel: channel, ts: ts), !files.isEmpty {
-            return files
+        // Top-level (or standalone) message: the newest message at-or-before `ts`
+        // is the message itself — but only trust it if the ts matches exactly.
+        if let msg = try? await latestMessage(channel: channel, ts: ts),
+           (msg["ts"] as? String) == ts {
+            return parseFiles(msg)
         }
-        return (try? await replyFiles(channel: channel, ts: ts)) ?? []
+        // Otherwise it's a thread reply: pull the thread, pick the exact message.
+        if let msg = try? await threadMessage(channel: channel, ts: ts) {
+            return parseFiles(msg)
+        }
+        return []
     }
 
     private func parseFiles(_ message: [String: Any]?) -> [SlackFile] {
@@ -85,20 +99,21 @@ struct SlackAPI: Sendable {
         return raw.compactMap(SlackFile.init(json:))
     }
 
-    private func historyFiles(channel: String, ts: String) async throws -> [SlackFile] {
+    /// The single most recent message at or before `ts` (canonical fetch-one idiom).
+    private func latestMessage(channel: String, ts: String) async throws -> [String: Any]? {
         let json = try await post("conversations.history", token: webToken, params: [
-            "channel": channel, "latest": ts, "oldest": ts, "inclusive": "true", "limit": "1",
+            "channel": channel, "latest": ts, "inclusive": "true", "limit": "1",
         ])
-        return parseFiles((json["messages"] as? [[String: Any]])?.first)
+        return (json["messages"] as? [[String: Any]])?.first
     }
 
-    private func replyFiles(channel: String, ts: String) async throws -> [SlackFile] {
+    /// The exact message `ts` within its thread, or nil — never a sibling/fallback.
+    private func threadMessage(channel: String, ts: String) async throws -> [String: Any]? {
         let json = try await post("conversations.replies", token: webToken, params: [
-            "channel": channel, "ts": ts, "latest": ts, "oldest": ts, "inclusive": "true", "limit": "1",
+            "channel": channel, "ts": ts, "limit": "200",
         ])
         let messages = json["messages"] as? [[String: Any]] ?? []
-        let match = messages.first(where: { ($0["ts"] as? String) == ts }) ?? messages.first
-        return parseFiles(match)
+        return messages.first(where: { ($0["ts"] as? String) == ts })
     }
 
     /// Streams a file's private content to a temp file (no full in-memory buffer)

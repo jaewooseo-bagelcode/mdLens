@@ -11,7 +11,7 @@ Slack에서 `.html`/`.md`에 **👀(:eyes:) reaction → mdLens가 파일을 받
 - [ ] **issue #2 — macOS 26.4에서 문서 창 0개** (신고자 sungmopark). 멀티-scene(DocumentGroup+MenuBarExtra+Window)과 26.4 충돌 가설. **26.5(메인테이너)에선 재현 불가**(MenuBarExtra 강제활성·full-configured 두 PoC 모두 창 정상). 신고자 회신 대기: 26.5 업데이트 시 해소되는지 / Disconnect A/B / saved-state·번들중복 배제. 확정 시 메뉴바·Setup을 AppKit(NSStatusItem/NSWindow)으로 이전 검토.
 
 ## Backlog
-- **코드블록 CJK 정렬 — 폰트 무의존화**: 현재 D2Coding류 설치자만 정렬됨(`pre code` 폰트스택). 모든 머신 보장하려면 CJK 코딩폰트 webfont(CDN) 로드 추가.
+- **코드블록 CJK 정렬 — 폰트 무의존화**: 현재 **Sarasa Term**(ambiguous-width=1셀) 설치자만 완전 정렬됨(`pre code` 폰트스택, `build-01e533d`). 미설치 동료는 D2Coding 폴백→ambiguous 드리프트. 모든 머신 보장하려면 Sarasa Term류 webfont(CDN) 로드 추가.
 
 ## Done (압축)
 Phase 1-6 완료 (커밋 7dea980 `.html` 뷰어, 10693c2 Slack 통합 → main):
@@ -27,7 +27,8 @@ Phase 1-6 완료 (커밋 7dea980 `.html` 뷰어, 10693c2 Slack 통합 → main):
 - **Slack 앱 이름 유니크**(e3a2834): 매니페스트 `name`을 `mdLens (<로그인명>-<랜덤4hex>)`로(BYO-app 충돌 방지, 1회 생성·UserDefaults 고정).
 - **릴리스·배포**: `build-e3a2834` 공증+발행(latest), `/Applications` 설치(QL 등록), 로컬 자동업데이트 체크 = 최신 일치(무동작) 검증. commitHash 박힘도 Updater 행동으로 직접 확인.
 - **라이브 Slack 검증 완료**: 실토큰으로 👀→다운로드→창 열기 prod 동작 확인(사용자).
-- **버그픽스 `build-2f09666`**(latest, 발행·설치): ① Slack 👀가 **반응한 메시지의 파일만** 열도록(정확 ts 단일 매칭·폴백 제거; rumi로 실스레드 root=.mov/reply=.md 원인 규명). ② 코드블록 **CJK 정렬**(`pre code` D2Coding 우선 → 한글=2셀). 둘 다 prod 확인 완료.
+- **버그픽스 `build-2f09666`**(발행·설치): ① Slack 👀가 **반응한 메시지의 파일만** 열도록(정확 ts 단일 매칭·폴백 제거; rumi로 실스레드 root=.mov/reply=.md 원인 규명). ② 코드블록 **CJK 정렬**(`pre code` D2Coding 우선 → 한글=2셀). prod 확인 완료.
+- **CJK ambiguous-width 정렬 `build-01e533d`**(latest, 발행·설치): 화살표·중점(→ · ◀ ▲) 같은 ambiguous-width로 박스 우측 테두리가 밀리던 것 → `pre code`에 **Sarasa Term 우선**(ambiguous=1셀, 터미널 작성 기준 일치). prod 확인 완료.
 
 ## Decisions
 | 항목 | 결정 | 이유 |

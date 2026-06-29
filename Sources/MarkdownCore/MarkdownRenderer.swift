@@ -411,10 +411,12 @@ public enum MarkdownRenderer {
             padding: 0;
             font-size: 0.85em;
             line-height: 1.5;
-            /* CJK-aware coding fonts first so Hangul renders at exactly 2 ASCII cells
-               and box-drawing / ASCII diagrams stay aligned; falls back to Latin
-               monospace when none of these are installed. */
-            font-family: "D2Coding", "Sarasa Mono K", "Sarasa Mono SC", "Noto Sans Mono CJK KR", "SF Mono", "JetBrains Mono", Menlo, monospace;
+            /* CJK-aware coding fonts so Hangul = exactly 2 ASCII cells and ASCII /
+               box-drawing diagrams stay aligned. "Sarasa Term" first because it
+               renders East-Asian *ambiguous-width* glyphs (→ · ◀ ▲ …) as 1 cell,
+               matching how terminal art is authored — otherwise trailing borders
+               drift. Falls back to Latin monospace when none are installed. */
+            font-family: "Sarasa Term K Nerd Font", "Sarasa Term K", "Sarasa Term J", "Sarasa Term SC", "D2Coding", "Noto Sans Mono CJK KR", "SF Mono", "JetBrains Mono", Menlo, monospace;
             tab-size: 4;
         }
         table {

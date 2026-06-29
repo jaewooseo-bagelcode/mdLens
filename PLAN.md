@@ -5,10 +5,13 @@ Slack에서 `.html`/`.md`에 **👀(:eyes:) reaction → mdLens가 파일을 받
 검증 끝난 데몬 코드(`_slack_integration/slackhtml-src/`)를 이식한다. 토큰은 **Keychain**(바이너리 임베드 0).
 
 ## Current
-- [ ] **라이브 Slack 검증 (사용자 수동, 유일 잔여)** — 앱메뉴 "Connect Slack…" → 매니페스트 앱 생성(이름 `mdLens (<user>-<id>)` 유니크) → xapp-/xoxp- 입력 → 메뉴바 👀 → Slack `.html`/`.md`에 👀 → 창 열림. (실토큰 필요 → 대행 불가). ⚠️ 노출됐던 토큰 회전 권장.
+- (없음) — 핵심 통합 전부 출시·라이브 확인 완료. 잔여는 Blocked/Backlog 참조.
 
 ## Blocked
-- (없음) — 토큰/앱/서명 인증서 모두 확보됨
+- [ ] **issue #2 — macOS 26.4에서 문서 창 0개** (신고자 sungmopark). 멀티-scene(DocumentGroup+MenuBarExtra+Window)과 26.4 충돌 가설. **26.5(메인테이너)에선 재현 불가**(MenuBarExtra 강제활성·full-configured 두 PoC 모두 창 정상). 신고자 회신 대기: 26.5 업데이트 시 해소되는지 / Disconnect A/B / saved-state·번들중복 배제. 확정 시 메뉴바·Setup을 AppKit(NSStatusItem/NSWindow)으로 이전 검토.
+
+## Backlog
+- **코드블록 CJK 정렬 — 폰트 무의존화**: 현재 D2Coding류 설치자만 정렬됨(`pre code` 폰트스택). 모든 머신 보장하려면 CJK 코딩폰트 webfont(CDN) 로드 추가.
 
 ## Done (압축)
 Phase 1-6 완료 (커밋 7dea980 `.html` 뷰어, 10693c2 Slack 통합 → main):
@@ -23,6 +26,8 @@ Phase 1-6 완료 (커밋 7dea980 `.html` 뷰어, 10693c2 Slack 통합 → main):
 - **리뷰·하드닝**(6ba58b5, d4b2d87): verify×2 + codex×2 → SocketMode stop 취소·다운로드 25MB 캡·QL temp 정리·build-release 자기완결. Critical/High 0으로 수렴.
 - **Slack 앱 이름 유니크**(e3a2834): 매니페스트 `name`을 `mdLens (<로그인명>-<랜덤4hex>)`로(BYO-app 충돌 방지, 1회 생성·UserDefaults 고정).
 - **릴리스·배포**: `build-e3a2834` 공증+발행(latest), `/Applications` 설치(QL 등록), 로컬 자동업데이트 체크 = 최신 일치(무동작) 검증. commitHash 박힘도 Updater 행동으로 직접 확인.
+- **라이브 Slack 검증 완료**: 실토큰으로 👀→다운로드→창 열기 prod 동작 확인(사용자).
+- **버그픽스 `build-2f09666`**(latest, 발행·설치): ① Slack 👀가 **반응한 메시지의 파일만** 열도록(정확 ts 단일 매칭·폴백 제거; rumi로 실스레드 root=.mov/reply=.md 원인 규명). ② 코드블록 **CJK 정렬**(`pre code` D2Coding 우선 → 한글=2셀). 둘 다 prod 확인 완료.
 
 ## Decisions
 | 항목 | 결정 | 이유 |

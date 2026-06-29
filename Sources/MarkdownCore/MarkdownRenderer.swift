@@ -411,6 +411,11 @@ public enum MarkdownRenderer {
             padding: 0;
             font-size: 0.85em;
             line-height: 1.5;
+            /* CJK-aware coding fonts first so Hangul renders at exactly 2 ASCII cells
+               and box-drawing / ASCII diagrams stay aligned; falls back to Latin
+               monospace when none of these are installed. */
+            font-family: "D2Coding", "Sarasa Mono K", "Sarasa Mono SC", "Noto Sans Mono CJK KR", "SF Mono", "JetBrains Mono", Menlo, monospace;
+            tab-size: 4;
         }
         table {
             border-collapse: collapse;

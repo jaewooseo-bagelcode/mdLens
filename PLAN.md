@@ -8,7 +8,7 @@ Slack에서 `.html`/`.md`에 **👀(:eyes:) reaction → mdLens가 파일을 받
 - (없음) — 핵심 통합 전부 출시·라이브 확인 완료. 잔여는 Blocked/Backlog 참조.
 
 ## Blocked
-- [ ] **issue #2 — macOS 26.4에서 문서 창 0개** (신고자 sungmopark). 멀티-scene(DocumentGroup+MenuBarExtra+Window)과 26.4 충돌 가설. **26.5(메인테이너)에선 재현 불가**(MenuBarExtra 강제활성·full-configured 두 PoC 모두 창 정상). 신고자 회신 대기: 26.5 업데이트 시 해소되는지 / Disconnect A/B / saved-state·번들중복 배제. 확정 시 메뉴바·Setup을 AppKit(NSStatusItem/NSWindow)으로 이전 검토.
+- [ ] **issue #2 — macOS 26.4에서 문서 창 0개** (신고자 sungmopark). **26.5(메인테이너)에선 재현 불가**(MenuBarExtra 강제활성·full-configured 두 PoC 모두 창 정상). 신고자 26.4 검증(2026-06-27): **MenuBarExtra 원인 아님**(Disconnect로 제거해도 open/File→New 둘 다 0개) · 환경(saved-state·번들중복·윈도우매니저·translocation) 전부 배제 · Console에 `LSExceptions timeout`/`task name port right 실패(0x5)`, WebKit web content는 뜨는데 **document scene(NSWindow) 미생성**. → 용의자 = `Window("Connect Slack")` scene 또는 **순수 26.4 DocumentGroup 회귀**. **대기: Director가 26.5 업데이트 후 결과 공유 예정**(풀리면 OS 버그 확정 → 워크어라운드=OS 업데이트, 26.4 잔류자 위해 scene 최소화 빌드 검토). blind fix 금지(MenuBarExtra 헛다리 전례).
 
 ## Backlog
 - **코드블록 CJK 정렬 — 폰트 무의존화**: 현재 **Sarasa Term**(ambiguous-width=1셀) 설치자만 완전 정렬됨(`pre code` 폰트스택, `build-01e533d`). 미설치 동료는 D2Coding 폴백→ambiguous 드리프트. 모든 머신 보장하려면 Sarasa Term류 webfont(CDN) 로드 추가.

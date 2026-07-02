@@ -5,7 +5,7 @@ Slack에서 `.html`/`.md`에 **👀(:eyes:) reaction → mdLens가 파일을 받
 검증 끝난 데몬 코드(`_slack_integration/slackhtml-src/`)를 이식한다. 토큰은 **Keychain**(바이너리 임베드 0).
 
 ## Current
-- [ ] **Slack 👀 = "내 반응"만 트리거** — 현재 `user_events: reaction_added`가 **남의 반응까지** 전달해서, 다른 사람이 👀 달면 내 mdLens가 열림. 포팅 때 구 데몬의 `onlyMyReactions`/`myUserID` 필터를 드롭한 회귀. **수정**: `SlackController.start()`가 `authTestUserID()` 결과(내 user_id)를 프로퍼티에 저장 → `handle()`에 `guard r.user == myUserID else { return }` 추가. (`SocketModeClient.Reaction.user` 이미 존재). 완료기준: 남이 👀 → 무동작, 내가 👀 → 열림. 검증 후 `build-release`.
+- (없음)
 
 ## Blocked
 - [ ] **issue #2 — macOS 26.4에서 문서 창 0개** (신고자 sungmopark). **26.5(메인테이너)에선 재현 불가**(MenuBarExtra 강제활성·full-configured 두 PoC 모두 창 정상). 신고자 26.4 검증(2026-06-27): **MenuBarExtra 원인 아님**(Disconnect로 제거해도 open/File→New 둘 다 0개) · 환경(saved-state·번들중복·윈도우매니저·translocation) 전부 배제 · Console에 `LSExceptions timeout`/`task name port right 실패(0x5)`, WebKit web content는 뜨는데 **document scene(NSWindow) 미생성**. → 용의자 = `Window("Connect Slack")` scene 또는 **순수 26.4 DocumentGroup 회귀**. **대기: Director가 26.5 업데이트 후 결과 공유 예정**(풀리면 OS 버그 확정 → 워크어라운드=OS 업데이트, 26.4 잔류자 위해 scene 최소화 빌드 검토). blind fix 금지(MenuBarExtra 헛다리 전례).
@@ -28,7 +28,8 @@ Phase 1-6 완료 (커밋 7dea980 `.html` 뷰어, 10693c2 Slack 통합 → main):
 - **릴리스·배포**: `build-e3a2834` 공증+발행(latest), `/Applications` 설치(QL 등록), 로컬 자동업데이트 체크 = 최신 일치(무동작) 검증. commitHash 박힘도 Updater 행동으로 직접 확인.
 - **라이브 Slack 검증 완료**: 실토큰으로 👀→다운로드→창 열기 prod 동작 확인(사용자).
 - **버그픽스 `build-2f09666`**(발행·설치): ① Slack 👀가 **반응한 메시지의 파일만** 열도록(정확 ts 단일 매칭·폴백 제거; rumi로 실스레드 root=.mov/reply=.md 원인 규명). ② 코드블록 **CJK 정렬**(`pre code` D2Coding 우선 → 한글=2셀). prod 확인 완료.
-- **CJK ambiguous-width 정렬 `build-01e533d`**(latest, 발행·설치): 화살표·중점(→ · ◀ ▲) 같은 ambiguous-width로 박스 우측 테두리가 밀리던 것 → `pre code`에 **Sarasa Term 우선**(ambiguous=1셀, 터미널 작성 기준 일치). prod 확인 완료.
+- **CJK ambiguous-width 정렬 `build-01e533d`**(발행·설치): 화살표·중점(→ · ◀ ▲) 같은 ambiguous-width로 박스 우측 테두리가 밀리던 것 → `pre code`에 **Sarasa Term 우선**(ambiguous=1셀, 터미널 작성 기준 일치). prod 확인 완료.
+- **Slack 👀 self-only 필터 `build-a936e6d`**(latest, 발행·설치): `reaction_added`가 남의 반응까지 전달해 다른 사람이 👀 달면 열리던 회귀 → `SlackController`가 `authTestUserID()` 결과를 `myUserID`에 저장(`stop()`서 nil), `handle()`에 `guard r.user == myUserID` 추가. 실사례(C0A9N4HTMS8 메시지에 타인 👀 2개)로 원인 확인. main 직접 커밋(a936e6d).
 
 ## Decisions
 | 항목 | 결정 | 이유 |

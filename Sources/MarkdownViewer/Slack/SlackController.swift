@@ -20,6 +20,8 @@ final class SlackController {
     private var api: SlackAPI?
     private var triggerEmoji = "eyes"
     private var didStartAtLaunch = false
+    /// Our own Slack user id (from auth.test). Reactions from other users are ignored.
+    private var myUserID: String?
 
     /// Start listening if tokens are present. Safe to call at launch — when not
     /// configured it does nothing (no prompt, no background activity). Idempotent
@@ -53,6 +55,7 @@ final class SlackController {
 
         Task {
             if let id = try? await api.authTestUserID() {
+                myUserID = id
                 statusText = "Listening for :\(triggerEmoji): (\(id))"
             } else {
                 statusText = "Auth failed — reconnect"
@@ -65,6 +68,7 @@ final class SlackController {
         client?.stop()
         client = nil
         api = nil
+        myUserID = nil
     }
 
     /// Stop and forget tokens. mdLens reverts to a pure viewer.
@@ -80,6 +84,9 @@ final class SlackController {
 
     private func handle(_ r: SocketModeClient.Reaction) {
         guard let api, r.reaction == triggerEmoji else { return }
+        // Only our own 👀 triggers a download. reaction_added also fires for other
+        // users' reactions; ignore those (and any before auth.test resolves myUserID).
+        guard let myUserID, r.user == myUserID else { return }
         Task {
             do {
                 let files = try await api.filesForMessage(channel: r.channel, ts: r.ts)

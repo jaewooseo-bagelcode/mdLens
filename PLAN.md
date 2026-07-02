@@ -5,7 +5,7 @@ Slack에서 `.html`/`.md`에 **👀(:eyes:) reaction → mdLens가 파일을 받
 검증 끝난 데몬 코드(`_slack_integration/slackhtml-src/`)를 이식한다. 토큰은 **Keychain**(바이너리 임베드 0).
 
 ## Current
-- (없음) — 핵심 통합 전부 출시·라이브 확인 완료. 잔여는 Blocked/Backlog 참조.
+- [ ] **Slack 👀 = "내 반응"만 트리거** — 현재 `user_events: reaction_added`가 **남의 반응까지** 전달해서, 다른 사람이 👀 달면 내 mdLens가 열림. 포팅 때 구 데몬의 `onlyMyReactions`/`myUserID` 필터를 드롭한 회귀. **수정**: `SlackController.start()`가 `authTestUserID()` 결과(내 user_id)를 프로퍼티에 저장 → `handle()`에 `guard r.user == myUserID else { return }` 추가. (`SocketModeClient.Reaction.user` 이미 존재). 완료기준: 남이 👀 → 무동작, 내가 👀 → 열림. 검증 후 `build-release`.
 
 ## Blocked
 - [ ] **issue #2 — macOS 26.4에서 문서 창 0개** (신고자 sungmopark). **26.5(메인테이너)에선 재현 불가**(MenuBarExtra 강제활성·full-configured 두 PoC 모두 창 정상). 신고자 26.4 검증(2026-06-27): **MenuBarExtra 원인 아님**(Disconnect로 제거해도 open/File→New 둘 다 0개) · 환경(saved-state·번들중복·윈도우매니저·translocation) 전부 배제 · Console에 `LSExceptions timeout`/`task name port right 실패(0x5)`, WebKit web content는 뜨는데 **document scene(NSWindow) 미생성**. → 용의자 = `Window("Connect Slack")` scene 또는 **순수 26.4 DocumentGroup 회귀**. **대기: Director가 26.5 업데이트 후 결과 공유 예정**(풀리면 OS 버그 확정 → 워크어라운드=OS 업데이트, 26.4 잔류자 위해 scene 최소화 빌드 검토). blind fix 금지(MenuBarExtra 헛다리 전례).

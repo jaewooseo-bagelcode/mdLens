@@ -44,22 +44,28 @@ final class SlackController {
         self.api = api
         triggerEmoji = cfg.triggerEmoji
 
-        let client = SocketModeClient(api: api) { [weak self] reaction in
+        let client = SocketModeClient(api: api, onReaction: { [weak self] reaction in
             Task { @MainActor in self?.handle(reaction) }
-        }
+        }, onConnect: { [weak self] in
+            Task { @MainActor in await self?.resolveMyUserID() }
+        })
         self.client = client
         client.start()
 
         isActive = true
         statusText = "Listening for :\(triggerEmoji):"
+    }
 
-        Task {
-            if let id = try? await api.authTestUserID() {
-                myUserID = id
-                statusText = "Listening for :\(triggerEmoji): (\(id))"
-            } else {
-                statusText = "Auth failed — reconnect"
-            }
+    /// Resolve our own Slack user id. Re-run on every (re)connect via `onConnect` so a
+    /// transient auth.test failure at launch can't leave the listener silently deaf
+    /// (the `handle()` guard drops all reactions while `myUserID` is nil) until relaunch.
+    private func resolveMyUserID() async {
+        guard let api else { return }
+        if let id = try? await api.authTestUserID() {
+            myUserID = id
+            statusText = "Listening for :\(triggerEmoji): (\(id))"
+        } else if myUserID == nil {
+            statusText = "Auth failed — retrying on reconnect"
         }
     }
 

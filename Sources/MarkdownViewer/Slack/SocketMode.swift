@@ -1,24 +1,46 @@
 import Foundation
+import AppKit
 
 /// Slack Socket Mode client: outbound WebSocket, no public endpoint needed.
 /// Receives Events API envelopes, acks them, and dispatches reaction_added.
+///
+/// Liveness: `URLSessionWebSocketTask.receive()` never times out on its own, so a
+/// half-open socket (common after sleep/resume) would leave `receive()` blocked
+/// forever with no reconnect. Two mechanisms force a reconnect:
+///   1. Heartbeat ping every 25s + a 10s pong watchdog → cancels the task (→ receive()
+///      throws) when the peer is silently gone.
+///   2. `NSWorkspace.didWakeNotification` → cancel the socket immediately on wake.
 @MainActor
 final class SocketModeClient {
     struct Reaction: Sendable { let reaction: String; let user: String; let channel: String; let ts: String }
 
     private let api: SlackAPI
     private let onReaction: @Sendable (Reaction) -> Void
+    /// Called on each (re)connect so the owner can re-resolve per-session state
+    /// (e.g. our own user id) — a transient failure must not stick until relaunch.
+    private let onConnect: @Sendable () -> Void
     private var running = false
     private var connectTask: Task<Void, Never>?
     private var webSocketTask: URLSessionWebSocketTask?
+    private var wakeObserver: NSObjectProtocol?
 
-    init(api: SlackAPI, onReaction: @escaping @Sendable (Reaction) -> Void) {
+    init(api: SlackAPI,
+         onReaction: @escaping @Sendable (Reaction) -> Void,
+         onConnect: @escaping @Sendable () -> Void = {}) {
         self.api = api
         self.onReaction = onReaction
+        self.onConnect = onConnect
     }
 
     func start() {
         running = true
+        // Force an immediate reconnect on wake — the pre-sleep socket is usually
+        // dead, and waiting for the next heartbeat would delay recovery ~35s.
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.handleWake() }
+        }
         connectTask = Task { await connectLoop() }
     }
 
@@ -27,10 +49,20 @@ final class SocketModeClient {
     /// downloads on disconnect/reconnect).
     func stop() {
         running = false
+        if let wakeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
+            self.wakeObserver = nil
+        }
         webSocketTask?.cancel(with: .goingAway, reason: nil)
         webSocketTask = nil
         connectTask?.cancel()
         connectTask = nil
+    }
+
+    private func handleWake() {
+        guard running else { return }
+        log("system wake — reconnecting")
+        webSocketTask?.cancel(with: .goingAway, reason: nil) // receive() throws → connectLoop reconnects
     }
 
     private func log(_ s: String) {
@@ -55,7 +87,10 @@ final class SocketModeClient {
         let task = session.webSocketTask(with: url)
         webSocketTask = task
         task.resume()
+        onConnect() // re-resolve per-session state on every (re)connect
+        let heartbeat = startHeartbeat(for: task)
         defer {
+            heartbeat.cancel()
             task.cancel(with: .goingAway, reason: nil)
             if webSocketTask === task { webSocketTask = nil }
         }
@@ -72,6 +107,33 @@ final class SocketModeClient {
             @unknown default: continue
             }
             if try handle(text: text, task: task) == .disconnect { return } // reconnect
+        }
+    }
+
+    /// Probe socket liveness: every 25s send a ping and arm a 10s watchdog. If the
+    /// pong doesn't arrive (half-open socket) the watchdog cancels the task, forcing
+    /// `receive()` to throw so `connectLoop` reconnects. `task.cancel()` is local so
+    /// it breaks a hung `receive()` even when the ping callback itself never fires.
+    private func startHeartbeat(for task: URLSessionWebSocketTask) -> Task<Void, Never> {
+        Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 25_000_000_000)
+                guard !Task.isCancelled, let self, self.running else { return }
+                let watchdog = Task { @MainActor [weak self] in
+                    try? await Task.sleep(nanoseconds: 10_000_000_000)
+                    guard !Task.isCancelled, let self, self.webSocketTask === task else { return }
+                    self.log("pong timeout — forcing reconnect")
+                    task.cancel(with: .goingAway, reason: nil)
+                }
+                task.sendPing { [weak self] error in
+                    Task { @MainActor in
+                        watchdog.cancel()
+                        guard let self, let error, self.webSocketTask === task else { return }
+                        self.log("ping failed (\(error)) — forcing reconnect")
+                        task.cancel(with: .goingAway, reason: nil)
+                    }
+                }
+            }
         }
     }
 

@@ -29,7 +29,8 @@ Phase 1-6 완료 (커밋 7dea980 `.html` 뷰어, 10693c2 Slack 통합 → main):
 - **라이브 Slack 검증 완료**: 실토큰으로 👀→다운로드→창 열기 prod 동작 확인(사용자).
 - **버그픽스 `build-2f09666`**(발행·설치): ① Slack 👀가 **반응한 메시지의 파일만** 열도록(정확 ts 단일 매칭·폴백 제거; rumi로 실스레드 root=.mov/reply=.md 원인 규명). ② 코드블록 **CJK 정렬**(`pre code` D2Coding 우선 → 한글=2셀). prod 확인 완료.
 - **CJK ambiguous-width 정렬 `build-01e533d`**(발행·설치): 화살표·중점(→ · ◀ ▲) 같은 ambiguous-width로 박스 우측 테두리가 밀리던 것 → `pre code`에 **Sarasa Term 우선**(ambiguous=1셀, 터미널 작성 기준 일치). prod 확인 완료.
-- **Slack 👀 self-only 필터 `build-a936e6d`**(latest, 발행·설치): `reaction_added`가 남의 반응까지 전달해 다른 사람이 👀 달면 열리던 회귀 → `SlackController`가 `authTestUserID()` 결과를 `myUserID`에 저장(`stop()`서 nil), `handle()`에 `guard r.user == myUserID` 추가. 실사례(C0A9N4HTMS8 메시지에 타인 👀 2개)로 원인 확인. main 직접 커밋(a936e6d).
+- **Slack 👀 self-only 필터 `build-a936e6d`**(발행·설치): `reaction_added`가 남의 반응까지 전달해 다른 사람이 👀 달면 열리던 회귀 → `SlackController`가 `authTestUserID()` 결과를 `myUserID`에 저장(`stop()`서 nil), `handle()`에 `guard r.user == myUserID` 추가. 실사례(C0A9N4HTMS8 메시지에 타인 👀 2개)로 원인 확인. main 직접 커밋(a936e6d).
+- **Socket 자동복구 `build-7db6123`**(latest, 발행·설치): `URLSessionWebSocketTask.receive()`가 idle 타임아웃이 없어 sleep/resume 후 half-open 소켓에서 영원히 블록 → 재연결 없이 "Listening" 좀비(앱 재시작해야 복구)되던 것. `SocketMode`에 (1) heartbeat ping 25s + pong 10s watchdog → task.cancel로 receive() throw 유도 → 재연결, (2) `NSWorkspace.didWakeNotification` 구독 → wake 즉시 재연결. 추가로 `onConnect` 훅으로 connect마다 `myUserID` 재확인(런치 시 auth.test 일시 실패가 self-only 가드를 영구 deaf로 만들던 잠재버그 차단). verify 50/60 통과 후 구현. main 직접 커밋(7db6123).
 
 ## Decisions
 | 항목 | 결정 | 이유 |

@@ -6,18 +6,13 @@ SwiftPM project (no Xcode project file).
 
 ## Features (PLAN.md is the SSOT for in-flight work)
 Viewers: rendered Markdown (swift-markdown → WKWebView) and raw `.html` (loaded directly,
-pipeline bypassed). Two optional add-ons, both shipped:
+pipeline bypassed). One optional add-on, shipped:
 - **Quick Look extension** (`Sources/QuickLookExtension` → `mdLensQL.appex`): Finder spacebar /
   preview-pane renders `.md`/`.html` via the shared `MarkdownCore`, full fidelity. JavaScript
   **runs** in the QL WebContent process — only with the minimal sandbox entitlements; adding
   JIT/library entitlements breaks it (see memory `quicklook-extension-wkwebview-js`).
-- **Opt-in Slack 👀 ingestion** (`Sources/MarkdownViewer/Slack`): with Keychain tokens, a
-  MenuBarExtra runs a Socket Mode listener; reacting 👀 on a Slack `.html`/`.md` downloads it
-  into a new mdLens window. No tokens → pure viewer, zero background. Tokens in **Keychain**
-  (never embedded); per-user BYO Slack app, manifest name `mdLens (<user>-<id>)`. Signing
-  identity `Developer ID Application: Sugarscone (5FK7UUGMX3)` keeps Keychain ACL prompt-free.
 
-⚠️ **Never use `pkill -f <pat>`** — it matches and kills the executing shell. Kill only recorded PIDs.
+Signing identity: `Developer ID Application: Sugarscone (5FK7UUGMX3)`.
 Work on `dev`; `main` is the protected release branch.
 
 ## Build & Run
@@ -89,12 +84,6 @@ Key invariants agents must preserve:
 - `mdLensQL.appex` (`PreviewViewController`): `.md` → `MarkdownRenderer` → temp file → `loadFileURL`;
   `.html` → `loadFileURL` directly. Embedded + signed by `build-app.sh`/`build-release.sh` (app signed
   WITHOUT `--deep` so the appex keeps its own entitlements).
-
-### Slack (Sources/MarkdownViewer/Slack)
-- `SlackController.shared` (started at launch via `startIfConfigured`) owns the opt-in lifecycle;
-  `isActive` drives `MenuBarExtra(isInserted:)`. `SocketModeClient` (@MainActor) → reaction → `SlackAPI`
-  download → open in a new window. `SlackSetupView` ("Connect Slack") writes tokens to `Keychain`
-  (service = `Bundle.main.bundleIdentifier`). `ManifestService` builds the BYO-app manifest deep link.
 
 ### Shared utilities (Sources/MarkdownCore/String+Extensions.swift)
 - `extractPlainText(from:)`, `SlugGenerator` (heading anchors), `markdownExtensions` (public),

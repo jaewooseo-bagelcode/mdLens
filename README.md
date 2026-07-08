@@ -106,8 +106,6 @@ Sources/
 │   ├── App/             MarkdownViewerApp (DocumentGroup), AppSettings, AppCommands, FocusedValues
 │   ├── Models/          MarkdownFileDocument (read-only FileDocument; .md + .html)
 │   ├── Services/        DocumentStats, BuildInfo (generated), Updater
-│   ├── Slack/           opt-in 👀 ingestion: SlackController, SocketModeClient, SlackAPI,
-│   │                    Keychain, ManifestService, SlackConfig, SlackSetupView, SlackMenuView
 │   └── Views/           DocumentView (root + raw-.html path), StatusBarView, SettingsView
 └── QuickLookExtension/  the `mdLensQL.appex` (QLPreviewingController + WKWebView via MarkdownCore)
 ```

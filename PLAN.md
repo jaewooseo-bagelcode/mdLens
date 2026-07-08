@@ -5,14 +5,13 @@ macOS 네이티브 마크다운/HTML 뷰어. SwiftUI + WKWebView + swift-markdow
 자동 업데이트: `build-<hash>` 태그. 상세는 README(SSOT).
 
 ## Current
-- [ ] **Slack 제거 배포** — Slack 👀 인입 기능 전체 삭제(Slack이 이제 .md/.html 인라인 렌더 제공 → 존재 이유 소멸). `Sources/MarkdownViewer/Slack/` 8파일 + MenuBarExtra + `Window("Connect Slack")` + `startIfConfigured` 제거 완료·빌드 통과. 완료기준: `build-release` → 발행 → `/Applications` 설치 → 순수 뷰어 동작 확인.
-- [ ] **issue #2 재검증** — 위 삭제로 `Window("Connect Slack")` scene + MenuBarExtra가 사라짐(= 이전 PLAN이 적어둔 "scene 최소화" 워크어라운드 그 자체). 26.4 신고자(sungmopark)에게 **새 빌드로 문서 창이 생성되는지** 확인 요청. 창 정상 → issue #2 close(원인=추가 scene). 여전히 0개 → 순수 26.4 DocumentGroup 회귀 확정.
+- [ ] **issue #2 재검증** — Slack 삭제로 `Window("Connect Slack")` scene + MenuBarExtra가 사라짐(= 이전 PLAN이 적어둔 "scene 최소화" 워크어라운드 그 자체, `build-a8d9909`). 26.4 신고자(sungmopark)에게 **새 빌드로 문서 창이 생성되는지** 확인 요청. 창 정상 → issue #2 close(원인=추가 scene). 여전히 0개 → 순수 26.4 DocumentGroup 회귀 확정.
 
 ## Blocked
 - (없음)
 
 ## Done (압축)
-- **Slack 👀 인입 (제거됨)**: Socket Mode 리스너로 👀→다운로드→자기 창 열기. self-only 필터(a936e6d)·sleep/resume 자동복구(7db6123)까지 하드닝했으나, **Slack이 .md/.html 네이티브 인라인 렌더를 제공하면서 기능 목적 소멸 → 전체 삭제**. 상세: git history.
+- **Slack 👀 인입 (제거됨 `build-a8d9909`, 발행·설치)**: Socket Mode 리스너로 👀→다운로드→자기 창 열기. self-only 필터(a936e6d)·sleep/resume 자동복구(7db6123)까지 하드닝했으나, **Slack이 .md/.html 네이티브 인라인 렌더를 제공하면서 기능 목적 소멸 → 전체 삭제**(8파일 + MenuBarExtra + Connect Slack scene). 순수 로컬 뷰어 + Quick Look로 단순화. 상세: git history.
 - **`.html` 뷰어**(7dea980): `loadFileURL` 직접 로드(마크다운 파이프라인 우회).
 - **Quick Look 확장**(8dbc327): `.md`/`.html` Finder 미리보기. `MarkdownCore` 공유 모듈 분리 후 `mdLensQL.appex`가 WKWebView+MarkdownRenderer로 풀 충실도 렌더. 핵심: QL 확장 WKWebView에서 JS 실행됨(최소 3 entitlement 한정).
 - **CJK ambiguous-width 정렬**(01e533d): `pre code`에 Sarasa Term 우선(ambiguous=1셀, 터미널 작성 기준 일치).

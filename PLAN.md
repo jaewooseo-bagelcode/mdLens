@@ -5,7 +5,10 @@ macOS 네이티브 마크다운/HTML 뷰어. SwiftUI + WKWebView + swift-markdow
 자동 업데이트: `build-<hash>` 태그. 상세는 README(SSOT).
 
 ## Current
-- [ ] **issue #2 재검증** — Slack 삭제로 `Window("Connect Slack")` scene + MenuBarExtra가 사라짐(= 이전 PLAN이 적어둔 "scene 최소화" 워크어라운드 그 자체, `build-a8d9909`). 26.4 신고자(sungmopark)에게 **새 빌드로 문서 창이 생성되는지** 확인 요청. 창 정상 → issue #2 close(원인=추가 scene). 여전히 0개 → 순수 26.4 DocumentGroup 회귀 확정.
+- (없음 — 활성 작업 없음)
+
+## Monitoring
+- **issue #2 (close됨, 재오픈 대기)** — Slack 삭제로 `Window("Connect Slack")` scene + MenuBarExtra 제거(= "scene 최소화" 워크어라운드, `build-a8d9909`)하며 낙관적 close. 26.4 신고자(sungmopark)가 새 빌드에서도 문서 창 0개면 재오픈 예정 → 그 경우 순수 26.4 DocumentGroup 회귀로 확정·대응.
 
 ## Blocked
 - (없음)

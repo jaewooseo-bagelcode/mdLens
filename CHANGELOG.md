@@ -2,6 +2,14 @@
 
 Releases are now tagged `build-<hash>` (see README). Entries below the semver ones use that scheme.
 
+## [build-a8d9909] - 2026-07-08
+
+### Removed
+- Slack 👀 ingestion (Socket Mode listener, menu-bar item, Connect-Slack setup) — Slack now
+  renders `.md`/`.html` inline, so pulling files into a separate mdLens window is redundant.
+  mdLens is now a pure local `.md`/`.html` viewer + Quick Look extension: no background work,
+  no Keychain tokens.
+
 ## [build-e3a2834] - 2026-06-26
 
 ### Added
